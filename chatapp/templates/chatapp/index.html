@@ -1,0 +1,2946 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WhatsApp Chat Analyzer</title>
+    <meta name="csrf-token" content="{{ csrf_token }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-color: #128C7E;
+            --secondary-color: #075E54;
+            --light-bg: #f5f5f5;
+            --white: #ffffff;
+            --text-color: #333333;
+            --border-color: #e0e0e0;
+            --success-color: #d4edda;
+            --error-color: #f8d7da;
+            --positive-color: #28a745;
+            --neutral-color: #6c757d;
+            --negative-color: #dc3545;
+        }
+        
+        * {
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            background-color: var(--light-bg);
+            color: var(--text-color);
+            line-height: 1.6;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: var(--white);
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            color: var(--primary-color);
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5rem;
+        }
+        
+        .header-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+        
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background-color: var(--white);
+        }
+        
+        .section h2 {
+            margin-top: 0;
+            color: var(--secondary-color);
+            border-bottom: 2px solid var(--primary-color);
+            padding-bottom: 10px;
+            font-size: 1.8rem;
+        }
+        
+        button {
+            background-color: var(--primary-color);
+            color: var(--white);
+            border: none;
+            padding: 12px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+            margin-right: 10px;
+            margin-bottom: 10px;
+            display: inline-flex;
+            align-items: center;
+        }
+        
+        button:hover {
+            background-color: var(--secondary-color);
+        }
+        
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        
+        button.active {
+            background-color: var(--secondary-color);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+        
+        button i {
+            margin-right: 8px;
+        }
+        
+        .btn-export {
+            background-color: #6c757d;
+        }
+        
+        .btn-export:hover {
+            background-color: #5a6268;
+        }
+        
+        .file-upload-section, .group-selector {
+            margin-bottom: 30px;
+            padding: 20px;
+            background-color: #f9f9f9;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+        
+        .file-upload-section h2, .group-selector h2 {
+            margin-top: 0;
+            color: var(--secondary-color);
+            margin-bottom: 15px;
+        }
+        
+        .file-upload-container {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+        
+        .file-input-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+            margin-right: 10px;
+        }
+        
+        .file-input-wrapper input[type=file] {
+            position: absolute;
+            left: 0;
+            top: 0;
+            opacity: 0;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+        }
+        
+        .file-input-label {
+            background-color: var(--primary-color);
+            color: var(--white);
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            display: inline-block;
+        }
+        
+        .file-input-label:hover {
+            background-color: var(--secondary-color);
+        }
+        
+        .upload-status {
+            margin-left: 10px;
+            font-style: italic;
+        }
+        
+        .uploaded-files {
+            margin-top: 15px;
+        }
+        
+        .file-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .file-item:last-child {
+            border-bottom: none;
+        }
+        
+        .file-info {
+            flex-grow: 1;
+        }
+        
+        .file-name {
+            font-weight: bold;
+        }
+        
+        .file-meta {
+            font-size: 12px;
+            color: #666;
+        }
+        
+        .delete-btn {
+            background-color: #dc3545;
+            color: var(--white);
+            border: none;
+            padding: 5px 10px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        
+        .delete-btn:hover {
+            background-color: #c82333;
+        }
+        
+        .no-files {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+            font-style: italic;
+        }
+        
+        .folder-info {
+            font-size: 14px;
+            color: #666;
+            margin-top: 10px;
+            font-style: italic;
+        }
+        
+        select, input[type="text"], input[type="date"], textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            margin-bottom: 15px;
+            font-size: 16px;
+        }
+        
+        .date-range {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        
+        .date-range > div {
+            flex: 1;
+        }
+        
+        .date-range label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        
+        .result {
+            background-color: #f9f9f9;
+            border-left: 4px solid var(--primary-color);
+            padding: 15px;
+            margin-top: 15px;
+            border-radius: 0 5px 5px 0;
+            white-space: pre-wrap;
+        }
+        
+        .status {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 5px;
+            display: none;
+        }
+        
+        .success {
+            background-color: var(--success-color);
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .error {
+            background-color: var(--error-color);
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .summary-buttons {
+            margin-bottom: 15px;
+            display: flex;
+            flex-wrap: wrap;
+        }
+        
+        .user-message-item {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+            font-size: 14px;
+        }
+        
+        .user-message-item:last-child {
+            border-bottom: none;
+        }
+        
+        .message-time {
+            color: #666;
+            font-weight: bold;
+        }
+        
+        .message-sender {
+            color: var(--primary-color);
+            font-weight: bold;
+            margin-left: 5px;
+        }
+        
+        .message-content {
+            margin-top: 5px;
+        }
+        
+        .user-selection {
+            margin-bottom: 15px;
+        }
+        
+        .user-message-list {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 10px;
+            background-color: #f9f9f9;
+        }
+        
+        .user-message-item-small {
+            padding: 8px;
+            border-bottom: 1px solid #eee;
+            font-size: 14px;
+        }
+        
+        .user-message-item-small:last-child {
+            border-bottom: none;
+        }
+        
+        .message-time-small {
+            color: #666;
+            font-size: 12px;
+        }
+        
+        .message-content-small {
+            margin-top: 3px;
+        }
+        
+        .week-summary {
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: #f9f9f9;
+            border-radius: 8px;
+            border-left: 4px solid var(--primary-color);
+        }
+        
+        .week-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+        
+        .week-title {
+            font-weight: bold;
+            color: var(--secondary-color);
+            font-size: 18px;
+        }
+        
+        .week-stats {
+            color: #666;
+            font-size: 14px;
+        }
+        
+        .week-summary-content {
+            margin-top: 10px;
+            line-height: 1.5;
+        }
+        
+        .question-section {
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 1px solid #ddd;
+        }
+        
+        .question-input {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .question-input input {
+            flex: 1;
+            margin-bottom: 0;
+        }
+        
+        .answer-result {
+            background-color: #f0f8ff;
+            border-left: 4px solid var(--primary-color);
+            padding: 15px;
+            border-radius: 0 5px 5px 0;
+            white-space: pre-wrap;
+        }
+        
+        .event-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .event-card {
+            background-color: #f9f9f9;
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .event-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        
+        .event-card h3 {
+            margin: 0 0 10px 0;
+            color: var(--primary-color);
+        }
+        
+        .event-card .count {
+            font-size: 24px;
+            font-weight: bold;
+        }
+        
+        .event-card .label {
+            font-size: 14px;
+            color: #666;
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            z-index: 1000;
+            overflow-y: auto;
+        }
+        
+        .modal-content {
+            background-color: var(--white);
+            margin: 50px auto;
+            padding: 20px;
+            border-radius: 10px;
+            width: 80%;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        
+        .close:hover {
+            color: black;
+        }
+        
+        .event-list {
+            margin-top: 15px;
+        }
+        
+        .event-item {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .event-item:last-child {
+            border-bottom: none;
+        }
+        
+        .event-timestamp {
+            font-size: 12px;
+            color: #666;
+        }
+        
+        .event-message {
+            margin-top: 5px;
+        }
+        
+        .top-removers {
+            margin-top: 15px;
+        }
+        
+        .remover-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .remover-item:last-child {
+            border-bottom: none;
+        }
+        
+        .no-group-selected {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+            font-style: italic;
+        }
+        
+        .refresh-btn {
+            background-color: var(--secondary-color);
+            color: var(--white);
+            border: none;
+            padding: 8px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-left: 10px;
+            transition: background-color 0.3s;
+        }
+        
+        .refresh-btn:hover {
+            background-color: #054d44;
+        }
+        
+        .hidden {
+            display: none;
+        }
+        
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .debug-info {
+            background-color: #f8f9fa;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 10px;
+            margin-top: 10px;
+            font-family: monospace;
+            font-size: 12px;
+            color: #666;
+        }
+        
+        .sentiment-overview {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .sentiment-card {
+            flex: 1;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            margin: 0 10px 10px 0;
+            min-width: 150px;
+        }
+        
+        .sentiment-card.positive {
+            background-color: var(--success-color);
+            border-left: 4px solid var(--positive-color);
+        }
+        
+        .sentiment-card.neutral {
+            background-color: #f8f9fa;
+            border-left: 4px solid var(--neutral-color);
+        }
+        
+        .sentiment-card.negative {
+            background-color: var(--error-color);
+            border-left: 4px solid var(--negative-color);
+        }
+        
+        .sentiment-count {
+            font-size: 36px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .sentiment-card.positive .sentiment-count {
+            color: var(--positive-color);
+        }
+        
+        .sentiment-card.neutral .sentiment-count {
+            color: var(--neutral-color);
+        }
+        
+        .sentiment-card.negative .sentiment-count {
+            color: var(--negative-color);
+        }
+        
+        .sentiment-label {
+            font-size: 16px;
+            font-weight: bold;
+        }
+        
+        .chart-container {
+            height: 300px;
+            margin-bottom: 20px;
+            background-color: #f9f9f9;
+            border-radius: 8px;
+            padding: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .chart-container.large {
+            height: 400px;
+        }
+        
+        .keywords-container {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .keyword-section {
+            flex: 1;
+            background-color: #f9f9f9;
+            border-radius: 8px;
+            padding: 15px;
+            min-width: 300px;
+        }
+        
+        .keyword-section h4 {
+            margin-top: 0;
+            color: var(--secondary-color);
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 10px;
+        }
+        
+        .keywords-list {
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        
+        .keyword-item {
+            padding: 8px;
+            border-bottom: 1px solid #eee;
+            font-size: 14px;
+        }
+        
+        .keyword-item:last-child {
+            border-bottom: none;
+        }
+        
+        .keyword {
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+        
+        .keyword-message {
+            margin-top: 3px;
+            font-style: italic;
+            color: #666;
+        }
+        
+        .keyword-meta {
+            font-size: 12px;
+            color: #999;
+            margin-top: 3px;
+        }
+        
+        .export-section {
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 1px solid #ddd;
+        }
+        
+        .topic-controls {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+        
+        .topic-item {
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: #f9f9f9;
+            border-radius: 8px;
+            border-left: 4px solid var(--primary-color);
+        }
+        
+        .topic-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .topic-title {
+            font-weight: bold;
+            color: var(--secondary-color);
+            font-size: 18px;
+        }
+        
+        .topic-method {
+            font-size: 14px;
+            color: #666;
+            font-style: italic;
+        }
+        
+        .topic-examples {
+            margin-top: 10px;
+        }
+        
+        .example-item {
+            margin-bottom: 8px;
+            padding: 8px;
+            background-color: #f0f0f0;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        
+        .example-meta {
+            font-size: 12px;
+            color: #666;
+            margin-top: 3px;
+        }
+        
+        .activity-controls {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+        
+        .activity-control-group {
+            flex: 1;
+            min-width: 200px;
+        }
+        
+        .activity-control-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        
+        .export-modal-content {
+            max-width: 700px;
+        }
+        
+        .export-options {
+            margin: 20px 0;
+        }
+        
+        .export-option-group {
+            margin-bottom: 20px;
+        }
+        
+        .export-option-group h3 {
+            margin-bottom: 10px;
+            color: var(--secondary-color);
+        }
+        
+        .checkbox-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            margin-right: 15px;
+        }
+        
+        .checkbox-item input {
+            margin-right: 5px;
+            width: auto;
+        }
+        
+        .format-options {
+            display: flex;
+            gap: 15px;
+            margin-top: 10px;
+        }
+        
+        .format-option {
+            display: flex;
+            align-items: center;
+        }
+        
+        .format-option input {
+            margin-right: 5px;
+            width: auto;
+        }
+        
+        .hourly-user-activity {
+            margin-top: 20px;
+        }
+        
+        .hour-selector {
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .hour-selector select {
+            width: auto;
+            margin-bottom: 0;
+            padding: 8px 12px;
+        }
+        
+        .user-activity-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        
+        .user-activity-table th, .user-activity-table td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        .user-activity-table th {
+            background-color: #f2f2f2;
+            font-weight: bold;
+        }
+        
+        .user-activity-table tr:hover {
+            background-color: #f5f5f5;
+        }
+        
+        .message-count {
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 15px;
+            }
+            
+            h1 {
+                font-size: 2rem;
+            }
+            
+            .header-actions {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            
+            .date-range {
+                flex-direction: column;
+            }
+            
+            .sentiment-overview {
+                flex-direction: column;
+            }
+            
+            .sentiment-card {
+                margin-right: 0;
+            }
+            
+            .keywords-container {
+                flex-direction: column;
+            }
+            
+            .activity-controls {
+                flex-direction: column;
+            }
+            
+            .modal-content {
+                width: 95%;
+                margin: 20px auto;
+            }
+            
+            .chart-container.large {
+                height: 300px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1><i class="fab fa-whatsapp"></i> WhatsApp Chat Analyzer</h1>
+        
+        <div class="file-upload-section">
+            <h2><i class="fas fa-upload"></i> Upload Chat Files</h2>
+            <div class="file-upload-container">
+                <div class="file-input-wrapper">
+                    <input type="file" id="file-input" accept=".txt">
+                    <label for="file-input" class="file-input-label">Choose File</label>
+                </div>
+                <button id="upload-btn" disabled><i class="fas fa-cloud-upload-alt"></i> Upload</button>
+                <span id="upload-status" class="upload-status"></span>
+            </div>
+            
+            <div class="uploaded-files">
+                <h3>Uploaded Files</h3>
+                <div id="files-list">
+                    <div class="no-files">No files uploaded yet</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="group-selector">
+            <h2><i class="fas fa-users"></i> Select Group</h2>
+            <div style="display: flex; align-items: center;">
+                <select id="group-select">
+                    <option value="">-- Select a Group --</option>
+                </select>
+                <button id="refresh-btn" class="refresh-btn"><i class="fas fa-sync-alt"></i> Refresh</button>
+            </div>
+            <div class="folder-info">
+                Select a group from the uploaded files to begin analysis.
+            </div>
+        </div>
+        
+        <div id="no-group-selected" class="no-group-selected">
+            <p>Please select a group to begin analysis</p>
+        </div>
+        
+        <div id="analysis-sections" style="display: none;">
+            <div class="header-actions">
+                <h2>Analysis Tools</h2>
+                <button id="export-chat-btn" class="btn-export"><i class="fas fa-download"></i> Export Chat Data</button>
+            </div>
+            
+            <div class="section">
+                <h2><i class="fas fa-file-alt"></i> Generate Summary</h2>
+                <div class="date-range">
+                    <div>
+                        <label for="start-date-summary">Start Date:</label>
+                        <input type="date" id="start-date-summary">
+                    </div>
+                    <div>
+                        <label for="end-date-summary">End Date:</label>
+                        <input type="date" id="end-date-summary">
+                    </div>
+                </div>
+                <div class="summary-buttons">
+                    <button id="total-summary-btn" class="summary-btn"><i class="fas fa-chart-line"></i> Total Summary</button>
+                    <button id="user-messages-btn" class="summary-btn"><i class="fas fa-comments"></i> User Messages</button>
+                    <button id="user-wise-btn" class="summary-btn"><i class="fas fa-user"></i> User-wise Report</button>
+                </div>
+                
+                <div id="total-summary-content" class="summary-content hidden">
+                    <button id="generate-weekly-btn"><i class="fas fa-calendar-week"></i> Generate Weekly Report</button>
+                    <div id="weekly-summary-result" class="result" style="display: none;"></div>
+                    
+                    <div class="question-section">
+                        <h3><i class="fas fa-question-circle"></i> Ask a Question</h3>
+                        <div class="question-input">
+                            <input type="text" id="summary-question-input" placeholder="Ask a question about the conversation...">
+                            <button id="ask-summary-question-btn"><i class="fas fa-paper-plane"></i> Ask</button>
+                        </div>
+                        <div id="summary-answer-result" class="answer-result" style="display: none;"></div>
+                        <div id="summary-debug-info" class="debug-info hidden"></div>
+                    </div>
+                </div>
+                
+                <div id="user-messages-content" class="summary-content hidden">
+                    <button id="generate-user-messages-btn"><i class="fas fa-list"></i> Show All Messages</button>
+                    <div id="user-messages-result" class="result" style="display: none;"></div>
+                </div>
+                
+                <div id="user-wise-content" class="summary-content hidden">
+                    <button id="get-users-btn"><i class="fas fa-users"></i> Get Users</button>
+                    <div id="user-selection" class="user-selection hidden">
+                        <label for="user-select">Select User:</label>
+                        <select id="user-select">
+                            <option value="">-- Select a User --</option>
+                        </select>
+                        <button id="show-user-messages-btn"><i class="fas fa-comment"></i> Show Messages</button>
+                    </div>
+                    <div id="user-messages-list" class="user-message-list" style="display: none;"></div>
+                </div>
+            </div>
+            
+            <div class="section">
+                <h2><i class="fas fa-question"></i> Ask Questions</h2>
+                <div class="date-range">
+                    <div>
+                        <label for="start-date-ask">Start Date:</label>
+                        <input type="date" id="start-date-ask">
+                    </div>
+                    <div>
+                        <label for="end-date-ask">End Date:</label>
+                        <input type="date" id="end-date-ask">
+                    </div>
+                </div>
+                <div class="question-input">
+                    <input type="text" id="question-input" placeholder="Ask a question about the conversation...">
+                    <button id="ask-btn"><i class="fas fa-paper-plane"></i> Ask Question</button>
+                </div>
+                <div id="answer-result" class="answer-result" style="display: none;"></div>
+                <div id="debug-info" class="debug-info hidden"></div>
+            </div>
+            
+            <div class="section">
+                <h2><i class="fas fa-calendar-check"></i> Group Events Analysis</h2>
+                <div class="date-range">
+                    <div>
+                        <label for="start-date-events">Start Date:</label>
+                        <input type="date" id="start-date-events">
+                    </div>
+                    <div>
+                        <label for="end-date-events">End Date:</label>
+                        <input type="date" id="end-date-events">
+                    </div>
+                </div>
+                <button id="analyze-events-btn"><i class="fas fa-chart-bar"></i> Analyze Group Events</button>
+                
+                <div id="events-result" style="display: none;">
+                    <h3>Event Counts</h3>
+                    <div class="event-cards" id="event-cards"></div>
+                    
+                    <h3 class="top-removers">Top Removers</h3>
+                    <div id="top-removers-list"></div>
+                </div>
+            </div>
+            
+            <div class="section">
+                <h2><i class="fas fa-smile"></i> Sentiment Analysis</h2>
+                <div class="date-range">
+                    <div>
+                        <label for="start-date-sentiment">Start Date:</label>
+                        <input type="date" id="start-date-sentiment">
+                    </div>
+                    <div>
+                        <label for="end-date-sentiment">End Date:</label>
+                        <input type="date" id="end-date-sentiment">
+                    </div>
+                </div>
+                <button id="analyze-sentiment-btn"><i class="fas fa-heart"></i> Analyze Sentiment</button>
+                
+                <div id="sentiment-result" style="display: none;">
+                    <h3>Overall Sentiment</h3>
+                    <div class="sentiment-overview">
+                        <div class="sentiment-card positive">
+                            <div class="sentiment-count" id="positive-count">0</div>
+                            <div class="sentiment-label">Positive</div>
+                        </div>
+                        <div class="sentiment-card neutral">
+                            <div class="sentiment-count" id="neutral-count">0</div>
+                            <div class="sentiment-label">Neutral</div>
+                        </div>
+                        <div class="sentiment-card negative">
+                            <div class="sentiment-count" id="negative-count">0</div>
+                            <div class="sentiment-label">Negative</div>
+                        </div>
+                    </div>
+                    
+                    <h3>Daily Sentiment</h3>
+                    <div class="chart-container">
+                        <canvas id="daily-sentiment-chart"></canvas>
+                    </div>
+                    
+                    <h3>User Sentiment</h3>
+                    <div class="chart-container">
+                        <canvas id="user-sentiment-chart"></canvas>
+                    </div>
+                    
+                    <h3>Top Emotional Keywords</h3>
+                    <div class="keywords-container">
+                        <div class="keyword-section">
+                            <h4>Positive Keywords</h4>
+                            <div id="positive-keywords" class="keywords-list"></div>
+                        </div>
+                        <div class="keyword-section">
+                            <h4>Negative Keywords</h4>
+                            <div id="negative-keywords" class="keywords-list"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="section">
+                <h2><i class="fas fa-chart-line"></i> Activity Analysis</h2>
+                <div class="activity-controls">
+                    <div class="activity-control-group">
+                        <label for="specific-date-activity">Specific Date (for Hourly Activity):</label>
+                        <input type="date" id="specific-date-activity">
+                    </div>
+                    <div class="activity-control-group">
+                        <label for="week-start-activity">Week Start (for Daily/User Activity):</label>
+                        <input type="date" id="week-start-activity">
+                    </div>
+                    <div class="activity-control-group">
+                        <label for="week-end-activity">Week End (for Daily/User Activity):</label>
+                        <input type="date" id="week-end-activity">
+                    </div>
+                </div>
+                <button id="analyze-activity-btn"><i class="fas fa-analytics"></i> Analyze Activity</button>
+                
+                <div id="activity-result" style="display: none;">
+                    <h3>Activity by Hour</h3>
+                    <div class="chart-container">
+                        <canvas id="activity-hour-chart"></canvas>
+                    </div>
+                    
+                    <h3>Activity by Day</h3>
+                    <div class="chart-container">
+                        <canvas id="activity-day-chart"></canvas>
+                    </div>
+                    
+                    <h3>User Activity</h3>
+                    <div class="chart-container">
+                        <canvas id="user-activity-chart"></canvas>
+                    </div>
+                    
+                    <div class="hourly-user-activity">
+                        <h3>Hourly Activity with Users</h3>
+                        <div class="hour-selector">
+                            <label for="hour-select">Select Hour:</label>
+                            <select id="hour-select">
+                                <option value="">-- Select Hour --</option>
+                            </select>
+                            <button id="show-hourly-users-btn"><i class="fas fa-users"></i> Show Users</button>
+                        </div>
+                        <div id="hourly-users-result" style="display: none;">
+                            <div class="chart-container large">
+                                <canvas id="hourly-users-chart"></canvas>
+                            </div>
+                            <table class="user-activity-table" id="hourly-users-table">
+                                <thead>
+                                    <tr>
+                                        <th>User</th>
+                                        <th>Message Count</th>
+                                        <th>Percentage</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <div class="export-section">
+                        <button id="export-activity-btn"><i class="fas fa-download"></i> Export Activity Data</button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="section">
+                <h2><i class="fas fa-tags"></i> Topic Analysis</h2>
+                <div class="date-range">
+                    <div>
+                        <label for="start-date-topic">Start Date:</label>
+                        <input type="date" id="start-date-topic">
+                    </div>
+                    <div>
+                        <label for="end-date-topic">End Date:</label>
+                        <input type="date" id="end-date-topic">
+                    </div>
+                </div>
+                <div class="topic-controls">
+                    <label for="topic-count">Number of Topics:</label>
+                    <select id="topic-count">
+                        <option value="5">5</option>
+                        <option value="10">10</option>
+                        <option value="15">15</option>
+                    </select>
+                    <button id="analyze-topic-btn"><i class="fas fa-search"></i> Analyze Topics</button>
+                </div>
+                
+                <div id="topic-result" style="display: none;">
+                    <h3>Top Topics</h3>
+                    <div id="topics-list"></div>
+                    
+                    <div class="export-section">
+                        <button id="export-topic-btn"><i class="fas fa-download"></i> Export Topic Data</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Event Details Modal -->
+    <div id="event-modal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2 id="modal-title"></h2>
+            <div id="modal-body" class="event-list"></div>
+        </div>
+    </div>
+    
+    <!-- Export Modal -->
+    <div id="export-modal" class="modal">
+        <div class="modal-content export-modal-content">
+            <span class="close">&times;</span>
+            <h2><i class="fas fa-download"></i> Export Chat Data</h2>
+            
+            <div class="export-options">
+                <div class="export-option-group">
+                    <h3>Select Data to Export</h3>
+                    <div class="checkbox-group">
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="export-summary" name="features" value="summary">
+                            <label for="export-summary">Summary</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="export-sentiment" name="features" value="sentiment">
+                            <label for="export-sentiment">Sentiment Analysis</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="export-topics" name="features" value="topics">
+                            <label for="export-topics">Topic Analysis</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="export-activity" name="features" value="activity">
+                            <label for="export-activity">Activity Analysis</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="export-events" name="features" value="events">
+                            <label for="export-events">Group Events</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="export-messages" name="features" value="messages">
+                            <label for="export-messages">All Messages</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="export-all" name="features" value="all">
+                            <label for="export-all">All Data</label>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="export-option-group">
+                    <h3>Export Format</h3>
+                    <div class="format-options">
+                        <div class="format-option">
+                            <input type="radio" id="format-json" name="format" value="json" checked>
+                            <label for="format-json">JSON</label>
+                        </div>
+                        <div class="format-option">
+                            <input type="radio" id="format-csv" name="format" value="csv">
+                            <label for="format-csv">CSV</label>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="export-option-group">
+                    <h3>Date Range</h3>
+                    <div class="date-range">
+                        <div>
+                            <label for="export-start-date">Start Date:</label>
+                            <input type="date" id="export-start-date">
+                        </div>
+                        <div>
+                            <label for="export-end-date">End Date:</label>
+                            <input type="date" id="export-end-date">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div style="text-align: center;">
+                <button id="confirm-export-btn"><i class="fas fa-download"></i> Export Data</button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Chart instances
+            let activityHourChartInstance = null;
+            let activityDayChartInstance = null;
+            let userActivityChartInstance = null;
+            let dailySentimentChartInstance = null;
+            let userSentimentChartInstance = null;
+            let hourlyUsersChartInstance = null;
+            
+            const groupSelect = document.getElementById('group-select');
+            const refreshBtn = document.getElementById('refresh-btn');
+            const noGroupSelected = document.getElementById('no-group-selected');
+            const analysisSections = document.getElementById('analysis-sections');
+            
+            // File upload elements
+            const fileInput = document.getElementById('file-input');
+            const uploadBtn = document.getElementById('upload-btn');
+            const uploadStatus = document.getElementById('upload-status');
+            const filesList = document.getElementById('files-list');
+            
+            // Summary buttons
+            const totalSummaryBtn = document.getElementById('total-summary-btn');
+            const userMessagesBtn = document.getElementById('user-messages-btn');
+            const userWiseBtn = document.getElementById('user-wise-btn');
+            
+            // Summary content sections
+            const totalSummaryContent = document.getElementById('total-summary-content');
+            const userMessagesContent = document.getElementById('user-messages-content');
+            const userWiseContent = document.getElementById('user-wise-content');
+            
+            // Summary action buttons
+            const generateWeeklyBtn = document.getElementById('generate-weekly-btn');
+            const generateUserMessagesBtn = document.getElementById('generate-user-messages-btn');
+            const getUsersBtn = document.getElementById('get-users-btn');
+            const showUserMessagesBtn = document.getElementById('show-user-messages-btn');
+            
+            // Summary results
+            const weeklySummaryResult = document.getElementById('weekly-summary-result');
+            const userMessagesResult = document.getElementById('user-messages-result');
+            const userSelection = document.getElementById('user-selection');
+            const userSelect = document.getElementById('user-select');
+            const userMessagesList = document.getElementById('user-messages-list');
+            
+            // Summary Q&A
+            const summaryQuestionInput = document.getElementById('summary-question-input');
+            const askSummaryQuestionBtn = document.getElementById('ask-summary-question-btn');
+            const summaryAnswerResult = document.getElementById('summary-answer-result');
+            const summaryDebugInfo = document.getElementById('summary-debug-info');
+            
+            // Ask question section
+            const questionInput = document.getElementById('question-input');
+            const askBtn = document.getElementById('ask-btn');
+            const answerResult = document.getElementById('answer-result');
+            const debugInfo = document.getElementById('debug-info');
+            
+            // Group events
+            const analyzeEventsBtn = document.getElementById('analyze-events-btn');
+            const eventsResult = document.getElementById('events-result');
+            const eventCards = document.getElementById('event-cards');
+            const topRemoversList = document.getElementById('top-removers-list');
+            
+            // Sentiment Analysis
+            const analyzeSentimentBtn = document.getElementById('analyze-sentiment-btn');
+            const sentimentResult = document.getElementById('sentiment-result');
+            const positiveCount = document.getElementById('positive-count');
+            const neutralCount = document.getElementById('neutral-count');
+            const negativeCount = document.getElementById('negative-count');
+            const dailySentimentChart = document.getElementById('daily-sentiment-chart');
+            const userSentimentChart = document.getElementById('user-sentiment-chart');
+            const positiveKeywords = document.getElementById('positive-keywords');
+            const negativeKeywords = document.getElementById('negative-keywords');
+            
+            // Activity Analysis
+            const analyzeActivityBtn = document.getElementById('analyze-activity-btn');
+            const activityResult = document.getElementById('activity-result');
+            const activityHourChart = document.getElementById('activity-hour-chart');
+            const activityDayChart = document.getElementById('activity-day-chart');
+            const userActivityChart = document.getElementById('user-activity-chart');
+            const exportActivityBtn = document.getElementById('export-activity-btn');
+            
+            // Hourly user activity
+            const hourSelect = document.getElementById('hour-select');
+            const showHourlyUsersBtn = document.getElementById('show-hourly-users-btn');
+            const hourlyUsersResult = document.getElementById('hourly-users-result');
+            const hourlyUsersChart = document.getElementById('hourly-users-chart');
+            const hourlyUsersTable = document.getElementById('hourly-users-table');
+            
+            // Topic Analysis
+            const analyzeTopicBtn = document.getElementById('analyze-topic-btn');
+            const topicResult = document.getElementById('topic-result');
+            const topicsList = document.getElementById('topics-list');
+            const topicCount = document.getElementById('topic-count');
+            const exportTopicBtn = document.getElementById('export-topic-btn');
+            
+            // Export functionality
+            const exportChatBtn = document.getElementById('export-chat-btn');
+            const exportModal = document.getElementById('export-modal');
+            const confirmExportBtn = document.getElementById('confirm-export-btn');
+            
+            // Modal
+            const modal = document.getElementById('event-modal');
+            const modalTitle = document.getElementById('modal-title');
+            const modalBody = document.getElementById('modal-body');
+            const closeModal = document.querySelector('.close');
+            
+            let currentGroup = '';
+            let activityData = null;
+            
+            function getCSRFToken() {
+                return document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+            }
+            
+            fileInput.addEventListener('change', function() {
+                if (fileInput.files.length > 0) {
+                    uploadBtn.disabled = false;
+                    uploadStatus.textContent = `Selected: ${fileInput.files[0].name}`;
+                } else {
+                    uploadBtn.disabled = true;
+                    uploadStatus.textContent = '';
+                }
+            });
+            
+            uploadBtn.addEventListener('click', function() {
+                if (fileInput.files.length === 0) {
+                    alert('Please select a file to upload');
+                    return;
+                }
+                
+                const file = fileInput.files[0];
+                const formData = new FormData();
+                formData.append('file', file);
+                
+                uploadBtn.disabled = true;
+                uploadBtn.textContent = 'Uploading...';
+                uploadStatus.textContent = 'Uploading...';
+                
+                fetch('/upload/', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': getCSRFToken()
+                    },
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    uploadBtn.disabled = true;
+                    uploadBtn.textContent = 'Upload';
+                    fileInput.value = '';
+                    uploadStatus.textContent = '';
+                    
+                    if (data.error) {
+                        alert(data.error);
+                    } else {
+                        uploadStatus.textContent = 'File uploaded successfully!';
+                        loadUploadedFiles();
+                        loadGroups();
+                    }
+                })
+                .catch(error => {
+                    uploadBtn.disabled = true;
+                    uploadBtn.textContent = 'Upload';
+                    fileInput.value = '';
+                    uploadStatus.textContent = '';
+                    
+                    alert('Error uploading file: ' + error.message);
+                });
+            });
+            
+            function loadUploadedFiles() {
+                fetch('/get_uploaded_files/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCSRFToken()
+                    },
+                    body: JSON.stringify({})
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.files && data.files.length > 0) {
+                        filesList.innerHTML = '';
+                        data.files.forEach(file => {
+                            const fileItem = document.createElement('div');
+                            fileItem.className = 'file-item';
+                            
+                            const fileInfo = document.createElement('div');
+                            fileInfo.className = 'file-info';
+                            
+                            const fileName = document.createElement('div');
+                            fileName.className = 'file-name';
+                            fileName.textContent = file.original_filename;
+                            
+                            const fileMeta = document.createElement('div');
+                            fileMeta.className = 'file-meta';
+                            fileMeta.textContent = `Group: ${file.group_name} | Uploaded: ${file.uploaded_at}`;
+                            
+                            fileInfo.appendChild(fileName);
+                            fileInfo.appendChild(fileMeta);
+                            
+                            const deleteBtn = document.createElement('button');
+                            deleteBtn.className = 'delete-btn';
+                            deleteBtn.textContent = 'Delete';
+                            deleteBtn.dataset.fileId = file.id;
+                            
+                            deleteBtn.addEventListener('click', function() {
+                                if (confirm('Are you sure you want to delete this file?')) {
+                                    deleteFile(file.id);
+                                }
+                            });
+                            
+                            fileItem.appendChild(fileInfo);
+                            fileItem.appendChild(deleteBtn);
+                            filesList.appendChild(fileItem);
+                        });
+                    } else {
+                        filesList.innerHTML = '<div class="no-files">No files uploaded yet</div>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading uploaded files:', error);
+                    filesList.innerHTML = '<div class="no-files">Error loading files</div>';
+                });
+            }
+            
+            function deleteFile(fileId) {
+                fetch('/delete_file/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCSRFToken()
+                    },
+                    body: JSON.stringify({ file_id: fileId })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        alert(data.error);
+                    } else {
+                        loadUploadedFiles();
+                        loadGroups();
+                    }
+                })
+                .catch(error => {
+                    alert('Error deleting file: ' + error.message);
+                });
+            }
+            
+            function loadGroups() {
+                fetch('/groups/')
+                    .then(response => response.json())
+                    .then(data => {
+                        groupSelect.innerHTML = '<option value="">-- Select a Group --</option>';
+                        data.groups.forEach(group => {
+                            const option = document.createElement('option');
+                            option.value = group;
+                            option.textContent = group;
+                            groupSelect.appendChild(option);
+                        });
+                        
+                        if (data.groups.length === 0) {
+                            noGroupSelected.innerHTML = `
+                                <p>No chat files found.</p>
+                                <p>Please upload WhatsApp export files (.txt) to begin analysis.</p>
+                            `;
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error loading groups:', error);
+                        noGroupSelected.innerHTML = '<p>Error loading groups. Please try refreshing.</p>';
+                    });
+            }
+            
+            refreshBtn.addEventListener('click', function() {
+                loadGroups();
+                loadUploadedFiles();
+                groupSelect.value = '';
+                currentGroup = '';
+                noGroupSelected.style.display = 'block';
+                analysisSections.style.display = 'none';
+            });
+            
+            groupSelect.addEventListener('change', function() {
+                currentGroup = groupSelect.value;
+                
+                if (currentGroup) {
+                    noGroupSelected.style.display = 'none';
+                    analysisSections.style.display = 'block';
+                } else {
+                    noGroupSelected.style.display = 'block';
+                    analysisSections.style.display = 'none';
+                }
+                
+                weeklySummaryResult.style.display = 'none';
+                userMessagesResult.style.display = 'none';
+                userSelection.classList.add('hidden');
+                userMessagesList.style.display = 'none';
+                answerResult.style.display = 'none';
+                summaryAnswerResult.style.display = 'none';
+                debugInfo.classList.add('hidden');
+                summaryDebugInfo.classList.add('hidden');
+                eventsResult.style.display = 'none';
+                sentimentResult.style.display = 'none';
+                activityResult.style.display = 'none';
+                topicResult.style.display = 'none';
+            });
+            
+            totalSummaryBtn.addEventListener('click', function() {
+                userMessagesContent.classList.add('hidden');
+                userWiseContent.classList.add('hidden');
+                totalSummaryContent.classList.remove('hidden');
+                
+                totalSummaryBtn.classList.add('active');
+                userMessagesBtn.classList.remove('active');
+                userWiseBtn.classList.remove('active');
+            });
+            
+            userMessagesBtn.addEventListener('click', function() {
+                totalSummaryContent.classList.add('hidden');
+                userWiseContent.classList.add('hidden');
+                userMessagesContent.classList.remove('hidden');
+                
+                totalSummaryBtn.classList.remove('active');
+                userMessagesBtn.classList.add('active');
+                userWiseBtn.classList.remove('active');
+            });
+            
+            userWiseBtn.addEventListener('click', function() {
+                totalSummaryContent.classList.add('hidden');
+                userMessagesContent.classList.add('hidden');
+                userWiseContent.classList.remove('hidden');
+                
+                totalSummaryBtn.classList.remove('active');
+                userMessagesBtn.classList.remove('active');
+                userWiseBtn.classList.add('active');
+            });
+            
+            function safeJsonParse(response) {
+                return response.text().then(text => {
+                    try {
+                        return JSON.parse(text);
+                    } catch (e) {
+                        throw new Error('Invalid JSON response: ' + text);
+                    }
+                });
+            }
+            
+            generateWeeklyBtn.addEventListener('click', function() {
+                if (!currentGroup) {
+                    alert('Please select a group first');
+                    return;
+                }
+                const startDate = document.getElementById('start-date-summary').value;
+                const endDate = document.getElementById('end-date-summary').value;
+                fetch('/summarize/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCSRFToken()
+                    },
+                    body: JSON.stringify({ 
+                        group_name: currentGroup,
+                        summary_type: 'weekly_summary',
+                        start_date: startDate,
+                        end_date: endDate
+                    })
+                })
+                .then(safeJsonParse)
+                .then(data => {
+                    if (data.error) {
+                        alert(data.error);
+                    } else {
+                        const summariesHtml = data.weekly_summaries.map(week => `
+                            <div class="week-summary">
+                                <div class="week-header">
+                                    <div class="week-title">${week.date_range}</div>
+                                    <div class="week-stats">${week.message_count} messages</div>
+                                </div>
+                                <div class="week-summary-content">${week.summary}</div>
+                            </div>
+                        `).join('');
+                        weeklySummaryResult.innerHTML = summariesHtml;
+                        weeklySummaryResult.style.display = 'block';
+                    }
+                })
+                .catch(error => {
+                    alert('Error generating weekly summary: ' + error.message);
+                });
+            });
+            
+            generateUserMessagesBtn.addEventListener('click', function() {
+                if (!currentGroup) {
+                    alert('Please select a group first');
+                    return;
+                }
+                const startDate = document.getElementById('start-date-summary').value;
+                const endDate = document.getElementById('end-date-summary').value;
+                fetch('/summarize/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCSRFToken()
+                    },
+                    body: JSON.stringify({ 
+                        group_name: currentGroup,
+                        summary_type: 'user_messages',
+                        start_date: startDate,
+                        end_date: endDate
+                    })
+                })
+                .then(safeJsonParse)
+                .then(data => {
+                    if (data.error) {
+                        alert(data.error);
+                    } else {
+                        // Format user messages
+                        const messagesHtml = data.user_messages.map(msg => `
+                            <div class="user-message-item">
+                                <div>
+                                    <span class="message-time">${msg.timestamp}</span>
+                                    <span class="message-sender">${msg.sender}</span>
+                                </div>
+                                <div class="message-content">${msg.message}</div>
+                            </div>
+                        `).join('');
+                        userMessagesResult.innerHTML = messagesHtml;
+                        userMessagesResult.style.display = 'block';
+                    }
+                })
+                .catch(error => {
+                    alert('Error generating user messages: ' + error.message);
+                });
+            });
+            
+            getUsersBtn.addEventListener('click', function() {
+                if (!currentGroup) {
+                    alert('Please select a group first');
+                    return;
+                }
+                const startDate = document.getElementById('start-date-summary').value;
+                const endDate = document.getElementById('end-date-summary').value;
+                fetch('/summarize/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCSRFToken()
+                    },
+                    body: JSON.stringify({ 
+                        group_name: currentGroup,
+                        summary_type: 'user_wise',
+                        start_date: startDate,
+                        end_date: endDate
+                    })
+                })
+                .then(safeJsonParse)
+                .then(data => {
+                    if (data.error) {
+                        alert(data.error);
+                    } else {
+                        userSelect.innerHTML = '<option value="">-- Select a User --</option>';
+                        data.users.forEach(user => {
+                            const option = document.createElement('option');
+                            option.value = user;
+                            option.textContent = user;
+                            userSelect.appendChild(option);
+                        });
+                        userSelection.classList.remove('hidden');
+                        userMessagesList.style.display = 'none';
+                    }
+                })
+                .catch(error => {
+                    alert('Error getting users: ' + error.message);
+                });
+            });
+            
+            showUserMessagesBtn.addEventListener('click', function() {
+                const selectedUser = userSelect.value;
+                if (!selectedUser) {
+                    alert('Please select a user');
+                    return;
+                }
+                const startDate = document.getElementById('start-date-summary').value;
+                const endDate = document.getElementById('end-date-summary').value;
+                fetch('/summarize/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCSRFToken()
+                    },
+                    body: JSON.stringify({ 
+                        group_name: currentGroup,
+                        summary_type: 'user_messages_for_user',
+                        user: selectedUser,
+                        start_date: startDate,
+                        end_date: endDate
+                    })
+                })
+                .then(safeJsonParse)
+                .then(data => {
+                    if (data.error) {
+                        alert(data.error);
+                    } else {
+                        const messagesHtml = data.user_messages.map(msg => `
+                            <div class="user-message-item-small">
+                                <div class="message-time-small">${msg.timestamp}</div>
+                                <div class="message-content-small">${msg.message}</div>
+                            </div>
+                        `).join('');
+                        userMessagesList.innerHTML = messagesHtml;
+                        userMessagesList.style.display = 'block';
+                    }
+                })
+                .catch(error => {
+                    alert('Error getting user messages: ' + error.message);
+                });
+            });
+            
+            // Ask question in summary section
+            askSummaryQuestionBtn.addEventListener('click', function() {
+                if (!currentGroup) {
+                    alert('Please select a group first');
+                    return;
+                }
+                
+                const question = summaryQuestionInput.value.trim();
+                if (!question) {
+                    alert('Please enter a question');
+                    return;
+                }
+                
+                const startDate = document.getElementById('start-date-summary').value;
+                const endDate = document.getElementById('end-date-summary').value;
+                
+                // Show loading
+                askSummaryQuestionBtn.disabled = true;
+                askSummaryQuestionBtn.innerHTML = '<span class="loading"></span> Asking...';
+                summaryAnswerResult.style.display = 'none';
+                summaryDebugInfo.classList.add('hidden');
+                
+                const requestData = {
+                    group_name: currentGroup,
+                    question: question,
+                    start_date: startDate,
+                    end_date: endDate
+                };
+                
+                console.log('Sending request:', requestData);
+                
+                fetch('/ask/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCSRFToken()
+                    },
+                    body: JSON.stringify(requestData)
+                })
+                .then(response => {
+                    console.log('Response status:', response.status);
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('Response data:', data);
+                    
+                    // Reset button
+                    askSummaryQuestionBtn.disabled = false;
+                    askSummaryQuestionBtn.innerHTML = 'Ask';
+                    
+                    if (data.error) {
+                        alert(data.error);
+                        summaryDebugInfo.textContent = `Error: ${data.error}`;
+                        summaryDebugInfo.classList.remove('hidden');
+                    } else {
+                        summaryAnswerResult.textContent = data.answer;
+                        summaryAnswerResult.style.display = 'block';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    
+                    // Reset button
+                    askSummaryQuestionBtn.disabled = false;
+                    askSummaryQuestionBtn.innerHTML = 'Ask';
+                    
+                    alert('Error asking question: ' + error.message);
+                    summaryDebugInfo.textContent = `Error: ${error.message}`;
+                    summaryDebugInfo.classList.remove('hidden');
+                });
+            });
+            
+            // Ask question button
+            askBtn.addEventListener('click', function() {
+                if (!currentGroup) {
+                    alert('Please select a group first');
+                    return;
+                }
+                
+                const question = questionInput.value.trim();
+                if (!question) {
+                    alert('Please enter a question');
+                    return;
+                }
+                
+                const startDate = document.getElementById('start-date-ask').value;
+                const endDate = document.getElementById('end-date-ask').value;
+                
+                // Show loading
+                askBtn.disabled = true;
+                askBtn.innerHTML = '<span class="loading"></span> Asking...';
+                answerResult.style.display = 'none';
+                debugInfo.classList.add('hidden');
+                
+                const requestData = {
+                    group_name: currentGroup,
+                    question: question,
+                    start_date: startDate,
+                    end_date: endDate
+                };
+                
+                console.log('Sending request:', requestData);
+                
+                fetch('/ask/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCSRFToken()
+                    },
+                    body: JSON.stringify(requestData)
+                })
+                .then(response => {
+                    console.log('Response status:', response.status);
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('Response data:', data);
+                    
+                    // Reset button
+                    askBtn.disabled = false;
+                    askBtn.innerHTML = 'Ask Question';
+                    
+                    if (data.error) {
+                        alert(data.error);
+                        debugInfo.textContent = `Error: ${data.error}`;
+                        debugInfo.classList.remove('hidden');
+                    } else {
+                        answerResult.textContent = data.answer;
+                        answerResult.style.display = 'block';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    
+                    // Reset button
+                    askBtn.disabled = false;
+                    askBtn.innerHTML = 'Ask Question';
+                    
+                    alert('Error asking question: ' + error.message);
+                    debugInfo.textContent = `Error: ${error.message}`;
+                    debugInfo.classList.remove('hidden');
+                });
+            });
+            
+            // Analyze group events button
+            analyzeEventsBtn.addEventListener('click', function() {
+                if (!currentGroup) {
+                    alert('Please select a group first');
+                    return;
+                }
+                
+                const startDate = document.getElementById('start-date-events').value;
+                const endDate = document.getElementById('end-date-events').value;
+                
+                fetch('/group_events/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCSRFToken()
+                    },
+                    body: JSON.stringify({ 
+                        group_name: currentGroup,
+                        start_date: startDate,
+                        end_date: endDate
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        alert(data.error);
+                    } else {
+                        displayEventCounts(data.event_counts);
+                        displayTopRemovers(data.top_removers);
+                        eventsResult.style.display = 'block';
+                    }
+                })
+                .catch(error => {
+                    alert('Error analyzing group events: ' + error.message);
+                });
+            });
+            
+            // Display event counts
+            function displayEventCounts(eventCounts) {
+                eventCards.innerHTML = '';
+                
+                const eventTypes = [
+                    { key: 'added', label: 'Added' },
+                    { key: 'left', label: 'Left' },
+                    { key: 'removed', label: 'Removed' },
+                    { key: 'changed_subject', label: 'Subject Changed' },
+                    { key: 'changed_icon', label: 'Icon Changed' },
+                    { key: 'created', label: 'Group Created' }
+                ];
+                
+                eventTypes.forEach(eventType => {
+                    const card = document.createElement('div');
+                    card.className = 'event-card';
+                    card.innerHTML = `
+                        <h3>${eventType.label}</h3>
+                        <div class="count">${eventCounts[eventType.key]}</div>
+                        <div class="label">events</div>
+                    `;
+                    
+                    card.addEventListener('click', function() {
+                        showEventDetails(eventType.key);
+                    });
+                    
+                    eventCards.appendChild(card);
+                });
+            }
+            
+            // Display top removers
+            function displayTopRemovers(topRemovers) {
+                topRemoversList.innerHTML = '';
+                
+                if (topRemovers.length === 0) {
+                    topRemoversList.innerHTML = '<p>No removal events found</p>';
+                    return;
+                }
+                
+                topRemovers.forEach(remover => {
+                    const item = document.createElement('div');
+                    item.className = 'remover-item';
+                    item.innerHTML = `
+                        <span>${remover[0]}</span>
+                        <span>${remover[1]} removals</span>
+                    `;
+                    topRemoversList.appendChild(item);
+                });
+            }
+            
+            // Show event details in modal
+            function showEventDetails(eventType) {
+                const startDate = document.getElementById('start-date-events').value;
+                const endDate = document.getElementById('end-date-events').value;
+                
+                fetch('/event_details/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCSRFToken()
+                    },
+                    body: JSON.stringify({ 
+                        group_name: currentGroup,
+                        event_type: eventType,
+                        start_date: startDate,
+                        end_date: endDate
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        alert(data.error);
+                    } else {
+                        // Set modal title
+                        const eventLabels = {
+                            'added': 'Added Events',
+                            'left': 'Left Events',
+                            'removed': 'Removed Events',
+                            'changed_subject': 'Subject Changed Events',
+                            'changed_icon': 'Icon Changed Events',
+                            'created': 'Group Created Events'
+                        };
+                        modalTitle.textContent = eventLabels[eventType];
+                        
+                        // Clear modal body
+                        modalBody.innerHTML = '';
+                        
+                        if (data.events.length === 0) {
+                            modalBody.innerHTML = '<p>No events found</p>';
+                        } else {
+                            data.events.forEach(event => {
+                                const item = document.createElement('div');
+                                item.className = 'event-item';
+                                
+                                let details = '';
+                                if (eventType === 'added') {
+                                    details = `${event.adder} added ${event.added_person}`;
+                                } else if (eventType === 'left') {
+                                    details = `${event.person} left`;
+                                } else if (eventType === 'removed') {
+                                    details = `${event.remover} removed ${event.removed_person}`;
+                                } else if (eventType === 'changed_subject') {
+                                    details = `${event.changer} changed subject to "${event.new_subject}"`;
+                                } else if (eventType === 'changed_icon') {
+                                    details = `${event.changer} changed group icon`;
+                                } else if (eventType === 'created') {
+                                    details = `${event.creator} created group`;
+                                }
+                                
+                                item.innerHTML = `
+                                    <div class="event-timestamp">${event.timestamp}</div>
+                                    <div class="event-message">${details}</div>
+                                `;
+                                modalBody.appendChild(item);
+                            });
+                        }
+                        
+                        // Show modal
+                        modal.style.display = 'block';
+                    }
+                })
+                .catch(error => {
+                    alert('Error getting event details: ' + error.message);
+                });
+            }
+            
+            // Close modal
+            closeModal.addEventListener('click', function() {
+                modal.style.display = 'none';
+                exportModal.style.display = 'none';
+            });
+            
+            window.addEventListener('click', function(event) {
+                if (event.target == modal) {
+                    modal.style.display = 'none';
+                }
+                if (event.target == exportModal) {
+                    exportModal.style.display = 'none';
+                }
+            });
+            
+            // Analyze sentiment button
+            analyzeSentimentBtn.addEventListener('click', function() {
+                if (!currentGroup) {
+                    alert('Please select a group first');
+                    return;
+                }
+                
+                const startDate = document.getElementById('start-date-sentiment').value;
+                const endDate = document.getElementById('end-date-sentiment').value;
+                
+                // Show loading
+                analyzeSentimentBtn.disabled = true;
+                analyzeSentimentBtn.innerHTML = '<span class="loading"></span> Analyzing...';
+                sentimentResult.style.display = 'none';
+                
+                fetch('/sentiment/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCSRFToken()
+                    },
+                    body: JSON.stringify({ 
+                        group_name: currentGroup,
+                        start_date: startDate,
+                        end_date: endDate
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    // Reset button
+                    analyzeSentimentBtn.disabled = false;
+                    analyzeSentimentBtn.innerHTML = 'Analyze Sentiment';
+                    
+                    if (data.error) {
+                        alert(data.error);
+                    } else {
+                        displaySentimentResults(data);
+                        sentimentResult.style.display = 'block';
+                    }
+                })
+                .catch(error => {
+                    // Reset button
+                    analyzeSentimentBtn.disabled = false;
+                    analyzeSentimentBtn.innerHTML = 'Analyze Sentiment';
+                    
+                    alert('Error analyzing sentiment: ' + error.message);
+                });
+            });
+            
+            // Display sentiment analysis results
+            function displaySentimentResults(data) {
+                // Display overall sentiment counts
+                positiveCount.textContent = data.overall_sentiment.positive;
+                neutralCount.textContent = data.overall_sentiment.neutral;
+                negativeCount.textContent = data.overall_sentiment.negative;
+                
+                // Destroy existing chart instances if they exist
+                if (dailySentimentChartInstance) {
+                    dailySentimentChartInstance.destroy();
+                }
+                if (userSentimentChartInstance) {
+                    userSentimentChartInstance.destroy();
+                }
+                
+                // Display daily sentiment
+                const dailyLabels = Object.keys(data.daily_sentiment).sort();
+                const dailyPositiveData = dailyLabels.map(date => data.daily_sentiment[date].positive);
+                const dailyNeutralData = dailyLabels.map(date => data.daily_sentiment[date].neutral);
+                const dailyNegativeData = dailyLabels.map(date => data.daily_sentiment[date].negative);
+                
+                const dailyCtx = dailySentimentChart.getContext('2d');
+                dailySentimentChartInstance = new Chart(dailyCtx, {
+                    type: 'line',
+                    data: {
+                        labels: dailyLabels,
+                        datasets: [
+                            {
+                                label: 'Positive',
+                                data: dailyPositiveData,
+                                backgroundColor: 'rgba(40, 167, 69, 0.2)',
+                                borderColor: 'rgba(40, 167, 69, 1)',
+                                borderWidth: 2,
+                                tension: 0.3
+                            },
+                            {
+                                label: 'Neutral',
+                                data: dailyNeutralData,
+                                backgroundColor: 'rgba(108, 117, 125, 0.2)',
+                                borderColor: 'rgba(108, 117, 125, 1)',
+                                borderWidth: 2,
+                                tension: 0.3
+                            },
+                            {
+                                label: 'Negative',
+                                data: dailyNegativeData,
+                                backgroundColor: 'rgba(220, 53, 69, 0.2)',
+                                borderColor: 'rgba(220, 53, 69, 1)',
+                                borderWidth: 2,
+                                tension: 0.3
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                title: {
+                                    display: true,
+                                    text: 'Number of Messages'
+                                }
+                            }
+                        }
+                    }
+                });
+                
+                // Display user sentiment
+                const userLabels = Object.keys(data.user_sentiment);
+                const userPositiveData = userLabels.map(user => data.user_sentiment[user].positive);
+                const userNeutralData = userLabels.map(user => data.user_sentiment[user].neutral);
+                const userNegativeData = userLabels.map(user => data.user_sentiment[user].negative);
+                
+                const userCtx = userSentimentChart.getContext('2d');
+                userSentimentChartInstance = new Chart(userCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: userLabels,
+                        datasets: [
+                            {
+                                label: 'Positive',
+                                data: userPositiveData,
+                                backgroundColor: 'rgba(40, 167, 69, 0.7)',
+                                borderColor: 'rgba(40, 167, 69, 1)',
+                                borderWidth: 1
+                            },
+                            {
+                                label: 'Neutral',
+                                data: userNeutralData,
+                                backgroundColor: 'rgba(108, 117, 125, 0.7)',
+                                borderColor: 'rgba(108, 117, 125, 1)',
+                                borderWidth: 1
+                            },
+                            {
+                                label: 'Negative',
+                                data: userNegativeData,
+                                backgroundColor: 'rgba(220, 53, 69, 0.7)',
+                                borderColor: 'rgba(220, 53, 69, 1)',
+                                borderWidth: 1
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            x: {
+                                stacked: true,
+                            },
+                            y: {
+                                stacked: true,
+                                beginAtZero: true,
+                                title: {
+                                    display: true,
+                                    text: 'Number of Messages'
+                                }
+                            }
+                        }
+                    }
+                });
+                
+                // Display positive keywords
+                positiveKeywords.innerHTML = '';
+                if (data.emotional_keywords.positive.length === 0) {
+                    positiveKeywords.innerHTML = '<p>No positive keywords found</p>';
+                } else {
+                    data.emotional_keywords.positive.slice(0, 10).forEach(item => {
+                        const keywordItem = document.createElement('div');
+                        keywordItem.className = 'keyword-item';
+                        keywordItem.innerHTML = `
+                            <div class="keyword">${item.keyword}</div>
+                            <div class="keyword-message">${item.message}</div>
+                            <div class="keyword-meta">${item.sender} - ${item.timestamp}</div>
+                        `;
+                        positiveKeywords.appendChild(keywordItem);
+                    });
+                }
+                
+                // Display negative keywords
+                negativeKeywords.innerHTML = '';
+                if (data.emotional_keywords.negative.length === 0) {
+                    negativeKeywords.innerHTML = '<p>No negative keywords found</p>';
+                } else {
+                    data.emotional_keywords.negative.slice(0, 10).forEach(item => {
+                        const keywordItem = document.createElement('div');
+                        keywordItem.className = 'keyword-item';
+                        keywordItem.innerHTML = `
+                            <div class="keyword">${item.keyword}</div>
+                            <div class="keyword-message">${item.message}</div>
+                            <div class="keyword-meta">${item.sender} - ${item.timestamp}</div>
+                        `;
+                        negativeKeywords.appendChild(keywordItem);
+                    });
+                }
+            }
+            
+            // Activity Analysis
+            analyzeActivityBtn.addEventListener('click', function() {
+                if (!currentGroup) {
+                    alert('Please select a group first');
+                    return;
+                }
+                
+                const specificDate = document.getElementById('specific-date-activity').value;
+                const weekStart = document.getElementById('week-start-activity').value;
+                const weekEnd = document.getElementById('week-end-activity').value;
+                
+                // Show loading
+                analyzeActivityBtn.disabled = true;
+                analyzeActivityBtn.innerHTML = '<span class="loading"></span> Analyzing...';
+                activityResult.style.display = 'none';
+                
+                const requestData = {
+                    group_name: currentGroup
+                };
+                
+                if (specificDate) {
+                    requestData.specific_date = specificDate;
+                }
+                
+                if (weekStart && weekEnd) {
+                    requestData.week_start = weekStart;
+                    requestData.week_end = weekEnd;
+                }
+                
+                fetch('/activity_analysis/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCSRFToken()
+                    },
+                    body: JSON.stringify(requestData)
+                })
+                .then(response => response.json())
+                .then(data => {
+                    // Reset button
+                    analyzeActivityBtn.disabled = false;
+                    analyzeActivityBtn.innerHTML = 'Analyze Activity';
+                    
+                    if (data.error) {
+                        alert(data.error);
+                    } else {
+                        activityData = data;
+                        displayActivityResults(data);
+                        activityResult.style.display = 'block';
+                    }
+                })
+                .catch(error => {
+                    // Reset button
+                    analyzeActivityBtn.disabled = false;
+                    analyzeActivityBtn.innerHTML = 'Analyze Activity';
+                    
+                    alert('Error analyzing activity: ' + error.message);
+                });
+            });
+            
+            function displayActivityResults(data) {
+                // Destroy existing chart instances if they exist
+                if (activityHourChartInstance) {
+                    activityHourChartInstance.destroy();
+                }
+                if (activityDayChartInstance) {
+                    activityDayChartInstance.destroy();
+                }
+                if (userActivityChartInstance) {
+                    userActivityChartInstance.destroy();
+                }
+                
+                // Activity by Hour Chart
+                const hourCtx = activityHourChart.getContext('2d');
+                activityHourChartInstance = new Chart(hourCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: Object.keys(data.activity_by_hour).sort(),
+                        datasets: [{
+                            label: 'Messages',
+                            data: Object.keys(data.activity_by_hour).sort().map(hour => data.activity_by_hour[hour]),
+                            backgroundColor: 'rgba(18, 140, 126, 0.7)',
+                            borderColor: 'rgba(18, 140, 126, 1)',
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                title: {
+                                    display: true,
+                                    text: 'Number of Messages'
+                                }
+                            },
+                            x: {
+                                title: {
+                                    display: true,
+                                    text: 'Hour of Day'
+                                }
+                            }
+                        }
+                    }
+                });
+                
+                // Activity by Day Chart
+                const dayCtx = activityDayChart.getContext('2d');
+                activityDayChartInstance = new Chart(dayCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
+                        datasets: [{
+                            label: 'Messages',
+                            data: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+                                .map(day => data.activity_by_day[day] || 0),
+                            backgroundColor: 'rgba(18, 140, 126, 0.7)',
+                            borderColor: 'rgba(18, 140, 126, 1)',
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                title: {
+                                    display: true,
+                                    text: 'Number of Messages'
+                                }
+                            }
+                        }
+                    }
+                });
+                
+                // User Activity Chart
+                const userCtx = userActivityChart.getContext('2d');
+                userActivityChartInstance = new Chart(userCtx, {
+                    type: 'pie',
+                    data: {
+                        labels: Object.keys(data.messages_per_user),
+                        datasets: [{
+                            data: Object.values(data.messages_per_user),
+                            backgroundColor: [
+                                'rgba(255, 99, 132, 0.7)',
+                                'rgba(54, 162, 235, 0.7)',
+                                'rgba(255, 206, 86, 0.7)',
+                                'rgba(75, 192, 192, 0.7)',
+                                'rgba(153, 102, 255, 0.7)',
+                                'rgba(255, 159, 64, 0.7)'
+                            ],
+                            borderColor: [
+                                'rgba(255, 99, 132, 1)',
+                                'rgba(54, 162, 235, 1)',
+                                'rgba(255, 206, 86, 1)',
+                                'rgba(75, 192, 192, 1)',
+                                'rgba(153, 102, 255, 1)',
+                                'rgba(255, 159, 64, 1)'
+                            ],
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'right',
+                            },
+                            title: {
+                                display: true,
+                                text: 'Messages per User'
+                            }
+                        }
+                    }
+                });
+                
+                // Populate hour selector
+                hourSelect.innerHTML = '<option value="">-- Select Hour --</option>';
+                for (let i = 0; i < 24; i++) {
+                    const hour = i.toString().padStart(2, '0') + ':00';
+                    const option = document.createElement('option');
+                    option.value = i;
+                    option.textContent = hour;
+                    hourSelect.appendChild(option);
+                }
+            }
+            
+            // Show hourly user activity
+            showHourlyUsersBtn.addEventListener('click', function() {
+                const selectedHour = hourSelect.value;
+                if (!selectedHour) {
+                    alert('Please select an hour');
+                    return;
+                }
+                
+                if (!activityData || !activityData.activity_by_hour_with_users) {
+                    alert('Activity data not available. Please analyze activity first.');
+                    return;
+                }
+                
+                const hourData = activityData.activity_by_hour_with_users[selectedHour];
+                if (!hourData) {
+                    alert('No data available for selected hour');
+                    return;
+                }
+                
+                // Destroy existing chart if it exists
+                if (hourlyUsersChartInstance) {
+                    hourlyUsersChartInstance.destroy();
+                }
+                
+                // Prepare data for the chart
+                const users = Object.keys(hourData);
+                const messageCounts = Object.values(hourData);
+                
+                // Calculate total messages for percentage calculation
+                const totalMessages = messageCounts.reduce((sum, count) => sum + count, 0);
+                
+                // Create pie chart
+                const ctx = hourlyUsersChart.getContext('2d');
+                hourlyUsersChartInstance = new Chart(ctx, {
+                    type: 'pie',
+                    data: {
+                        labels: users,
+                        datasets: [{
+                            data: messageCounts,
+                            backgroundColor: [
+                                'rgba(255, 99, 132, 0.7)',
+                                'rgba(54, 162, 235, 0.7)',
+                                'rgba(255, 206, 86, 0.7)',
+                                'rgba(75, 192, 192, 0.7)',
+                                'rgba(153, 102, 255, 0.7)',
+                                'rgba(255, 159, 64, 0.7)',
+                                'rgba(199, 199, 199, 0.7)',
+                                'rgba(83, 102, 255, 0.7)',
+                                'rgba(255, 99, 255, 0.7)',
+                                'rgba(99, 255, 132, 0.7)'
+                            ],
+                            borderColor: [
+                                'rgba(255, 99, 132, 1)',
+                                'rgba(54, 162, 235, 1)',
+                                'rgba(255, 206, 86, 1)',
+                                'rgba(75, 192, 192, 1)',
+                                'rgba(153, 102, 255, 1)',
+                                'rgba(255, 159, 64, 1)',
+                                'rgba(199, 199, 199, 1)',
+                                'rgba(83, 102, 255, 1)',
+                                'rgba(255, 99, 255, 1)',
+                                'rgba(99, 255, 132, 1)'
+                            ],
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'right',
+                            },
+                            title: {
+                                display: true,
+                                text: `User Activity at ${selectedHour}:00`
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        const label = context.label || '';
+                                        const value = context.raw || 0;
+                                        const percentage = ((value / totalMessages) * 100).toFixed(1);
+                                        return `${label}: ${value} messages (${percentage}%)`;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+                
+                // Populate table
+                const tableBody = hourlyUsersTable.querySelector('tbody');
+                tableBody.innerHTML = '';
+                
+                // Sort users by message count (descending)
+                const sortedUsers = users.map(user => ({
+                    user,
+                    count: hourData[user]
+                })).sort((a, b) => b.count - a.count);
+                
+                sortedUsers.forEach(item => {
+                    const row = document.createElement('tr');
+                    const percentage = ((item.count / totalMessages) * 100).toFixed(1);
+                    
+                    row.innerHTML = `
+                        <td>${item.user}</td>
+                        <td class="message-count">${item.count}</td>
+                        <td>${percentage}%</td>
+                    `;
+                    
+                    tableBody.appendChild(row);
+                });
+                
+                // Show the result section
+                hourlyUsersResult.style.display = 'block';
+            });
+            
+            // Topic Analysis
+            analyzeTopicBtn.addEventListener('click', function() {
+                if (!currentGroup) {
+                    alert('Please select a group first');
+                    return;
+                }
+                
+                const startDate = document.getElementById('start-date-topic').value;
+                const endDate = document.getElementById('end-date-topic').value;
+                const topN = topicCount.value;
+                
+                // Show loading
+                analyzeTopicBtn.disabled = true;
+                analyzeTopicBtn.innerHTML = '<span class="loading"></span> Analyzing...';
+                topicResult.style.display = 'none';
+                
+                fetch('/topic_analysis/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCSRFToken()
+                    },
+                    body: JSON.stringify({ 
+                        group_name: currentGroup,
+                        start_date: startDate,
+                        end_date: endDate,
+                        top_n: topN
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    // Reset button
+                    analyzeTopicBtn.disabled = false;
+                    analyzeTopicBtn.innerHTML = 'Analyze Topics';
+                    
+                    if (data.error) {
+                        alert(data.error);
+                    } else {
+                        displayTopicResults(data.topics);
+                        topicResult.style.display = 'block';
+                    }
+                })
+                .catch(error => {
+                    // Reset button
+                    analyzeTopicBtn.disabled = false;
+                    analyzeTopicBtn.innerHTML = 'Analyze Topics';
+                    
+                    alert('Error analyzing topics: ' + error.message);
+                });
+            });
+            
+            function displayTopicResults(topics) {
+                topicsList.innerHTML = '';
+                
+                topics.forEach(topic => {
+                    const topicItem = document.createElement('div');
+                    topicItem.className = 'topic-item';
+                    
+                    const topicHeader = document.createElement('div');
+                    topicHeader.className = 'topic-header';
+                    
+                    const topicTitle = document.createElement('div');
+                    topicTitle.className = 'topic-title';
+                    topicTitle.textContent = topic.topic;
+                    
+                    const topicMethod = document.createElement('div');
+                    topicMethod.className = 'topic-method';
+                    topicMethod.textContent = `Method: ${topic.method}, Score: ${topic.score.toFixed(2)}`;
+                    
+                    topicHeader.appendChild(topicTitle);
+                    topicHeader.appendChild(topicMethod);
+                    
+                    const topicExamples = document.createElement('div');
+                    topicExamples.className = 'topic-examples';
+                    
+                    if (topic.examples && topic.examples.length > 0) {
+                        topic.examples.forEach(example => {
+                            const exampleItem = document.createElement('div');
+                            exampleItem.className = 'example-item';
+                            
+                            const exampleMessage = document.createElement('div');
+                            exampleMessage.textContent = example.message;
+                            
+                            const exampleMeta = document.createElement('div');
+                            exampleMeta.className = 'example-meta';
+                            exampleMeta.textContent = `${example.sender} - ${example.timestamp}`;
+                            
+                            exampleItem.appendChild(exampleMessage);
+                            exampleItem.appendChild(exampleMeta);
+                            topicExamples.appendChild(exampleItem);
+                        });
+                    } else {
+                        topicExamples.textContent = 'No examples found';
+                    }
+                    
+                    topicItem.appendChild(topicHeader);
+                    topicItem.appendChild(topicExamples);
+                    topicsList.appendChild(topicItem);
+                });
+            }
+            
+            // Export functionality
+            exportChatBtn.addEventListener('click', function() {
+                exportModal.style.display = 'block';
+            });
+            
+            confirmExportBtn.addEventListener('click', function() {
+                if (!currentGroup) {
+                    alert('Please select a group first');
+                    return;
+                }
+                
+                // Get selected features
+                const selectedFeatures = [];
+                const featureCheckboxes = document.querySelectorAll('input[name="features"]:checked');
+                featureCheckboxes.forEach(checkbox => {
+                    selectedFeatures.push(checkbox.value);
+                });
+                
+                if (selectedFeatures.length === 0) {
+                    alert('Please select at least one feature to export');
+                    return;
+                }
+                
+                // Get selected format
+                const formatRadios = document.querySelectorAll('input[name="format"]:checked');
+                if (formatRadios.length === 0) {
+                    alert('Please select an export format');
+                    return;
+                }
+                const format = formatRadios[0].value;
+                
+                // Get date range
+                const startDate = document.getElementById('export-start-date').value;
+                const endDate = document.getElementById('export-end-date').value;
+                
+                // Show loading
+                confirmExportBtn.disabled = true;
+                confirmExportBtn.innerHTML = '<span class="loading"></span> Exporting...';
+                
+                fetch('/export_data/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCSRFToken()
+                    },
+                    body: JSON.stringify({ 
+                        group_name: currentGroup,
+                        start_date: startDate,
+                        end_date: endDate,
+                        features: selectedFeatures,
+                        format: format
+                    })
+                })
+                .then(response => {
+                    if (response.ok) {
+                        return response.blob();
+                    } else {
+                        return response.json().then(data => {
+                            throw new Error(data.error || 'Unknown error');
+                        });
+                    }
+                })
+                .then(blob => {
+                    // Create download link
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.style.display = 'none';
+                    a.href = url;
+                    
+                    // Set filename based on format
+                    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+                    a.download = `${currentGroup}_chat_export_${timestamp}.${format}`;
+                    
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    
+                    // Reset button and close modal
+                    confirmExportBtn.disabled = false;
+                    confirmExportBtn.innerHTML = 'Export Data';
+                    exportModal.style.display = 'none';
+                })
+                .catch(error => {
+                    // Reset button
+                    confirmExportBtn.disabled = false;
+                    confirmExportBtn.innerHTML = 'Export Data';
+                    
+                    alert('Error exporting data: ' + error.message);
+                });
+            });
+            
+            // Export activity data
+            exportActivityBtn.addEventListener('click', function() {
+                if (!currentGroup) {
+                    alert('Please select a group first');
+                    return;
+                }
+                
+                const specificDate = document.getElementById('specific-date-activity').value;
+                const weekStart = document.getElementById('week-start-activity').value;
+                const weekEnd = document.getElementById('week-end-activity').value;
+                
+                const requestData = {
+                    group_name: currentGroup,
+                    features: ['activity'],
+                    format: 'json'
+                };
+                
+                if (specificDate) {
+                    requestData.specific_date = specificDate;
+                }
+                
+                if (weekStart && weekEnd) {
+                    requestData.week_start = weekStart;
+                    requestData.week_end = weekEnd;
+                }
+                
+                fetch('/export_data/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCSRFToken()
+                    },
+                    body: JSON.stringify(requestData)
+                })
+                .then(response => {
+                    if (response.ok) {
+                        return response.blob();
+                    } else {
+                        return response.json().then(data => {
+                            throw new Error(data.error || 'Unknown error');
+                        });
+                    }
+                })
+                .then(blob => {
+                    // Create download link
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.style.display = 'none';
+                    a.href = url;
+                    
+                    // Set filename
+                    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+                    a.download = `${currentGroup}_activity_export_${timestamp}.json`;
+                    
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                })
+                .catch(error => {
+                    alert('Error exporting activity data: ' + error.message);
+                });
+            });
+            
+            // Export topic data
+            exportTopicBtn.addEventListener('click', function() {
+                if (!currentGroup) {
+                    alert('Please select a group first');
+                    return;
+                }
+                
+                const startDate = document.getElementById('start-date-topic').value;
+                const endDate = document.getElementById('end-date-topic').value;
+                
+                fetch('/export_data/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCSRFToken()
+                    },
+                    body: JSON.stringify({ 
+                        group_name: currentGroup,
+                        start_date: startDate,
+                        end_date: endDate,
+                        features: ['topics'],
+                        format: 'json'
+                    })
+                })
+                .then(response => {
+                    if (response.ok) {
+                        return response.blob();
+                    } else {
+                        return response.json().then(data => {
+                            throw new Error(data.error || 'Unknown error');
+                        });
+                    }
+                })
+                .then(blob => {
+                    // Create download link
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.style.display = 'none';
+                    a.href = url;
+                    
+                    // Set filename
+                    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+                    a.download = `${currentGroup}_topics_export_${timestamp}.json`;
+                    
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                })
+                .catch(error => {
+                    alert('Error exporting topic data: ' + error.message);
+                });
+            });
+            
+            loadUploadedFiles();
+            loadGroups();
+        });
+    </script>
+</body>
+</html>
