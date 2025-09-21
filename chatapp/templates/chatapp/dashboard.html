@@ -1,0 +1,726 @@
+{% extends 'chatapp/base.html' %}
+{% block title %}Dashboard • WhatsApp Chat Analyzer{% endblock %}
+
+{% block body %}
+  <main class="layout" id="dashLayout">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar__header">
+        <span class="sidebar__label"><strong>Analysis</strong></span>
+        <button class="btn-ghost sidebar__toggle" id="sidebarToggle" title="Collapse"><i class="fa-solid fa-bars"></i></button>
+      </div>
+      <ul class="sidebar__menu" id="menu">
+        <li><a href="#" data-section="summary" class="active"><i class="fa-solid fa-bolt"></i><span class="sidebar__label">Generate Summary</span></a></li>
+        <li><a href="#" data-section="ask"><i class="fa-solid fa-circle-question"></i><span class="sidebar__label">Ask Questions</span></a></li>
+        <li><a href="#" data-section="events"><i class="fa-solid fa-people-arrows"></i><span class="sidebar__label">Group Events Analysis</span></a></li>
+        <li><a href="#" data-section="sentiment"><i class="fa-solid fa-face-smile"></i><span class="sidebar__label">Sentiment Analysis</span></a></li>
+        <li><a href="#" data-section="activity"><i class="fa-solid fa-chart-line"></i><span class="sidebar__label">Activity Analysis</span></a></li>
+        <li><a href="#" data-section="history"><i class="fa-solid fa-clock-rotate-left"></i><span class="sidebar__label">History</span></a></li>
+      </ul>
+    </aside>
+
+    <section class="content">
+      <div class="card gradient-accent" style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+        <div>
+          <h1 style="margin:0; font-size:20px;">Analysis Dashboard</h1>
+          <div style="color:var(--muted);">Group: <span id="currentGroup">Loading...</span></div>
+        </div>
+        <div class="actions">
+          <a class="btn-ghost" href="/home"><i class="fa-solid fa-house"></i> Home</a>
+        </div>
+      </div>
+
+      <div id="section-summary" class="card">
+        <style>
+          .sub-options { margin-top: 10px; padding: 10px; border: 1px solid #ddd; border-radius: 5px; background: #f9f9f9; }
+          .sub-options button { margin: 5px; }
+        </style>
+        <h2>Generate Summary</h2>
+        <div class="date-range">
+          <div><label>Start</label><input type="date" id="sumStart"></div>
+          <div><label>End</label><input type="date" id="sumEnd"></div>
+        </div>
+        <div class="actions">
+          <button id="totalSummaryBtn" data-type="auto" class="sum-btn">Total Summary</button>
+          <button id="userMessagesBtn" data-type="user_messages" class="sum-btn">User Messages</button>
+          <button id="userWiseBtn" class="sum-btn">User-wise Report</button>
+        </div>
+        <div id="userWiseOptions" class="sub-options" style="display:none;">
+          <button id="getUsersBtn" class="sum-btn">Get Users</button>
+          <div class="user-selection" id="userSelectWrap" style="display:none;">
+            <label>User</label>
+            <select id="sumUser"></select>
+            <button data-type="user_messages_for_user" class="sum-btn">Show Messages</button>
+          </div>
+        </div>
+        <div class="result" id="sumResult">Select options and click a button to generate summary</div>
+      </div>
+
+      <div id="section-ask" class="card hidden">
+        <h2>Ask Questions</h2>
+        <div class="date-range">
+          <div><label>Start</label><input type="date" id="askStart"></div>
+          <div><label>End</label><input type="date" id="askEnd"></div>
+        </div>
+        <textarea id="askText" rows="3" placeholder="Ask anything about this chat..."></textarea>
+        <div class="actions"><button id="askBtn">Ask</button></div>
+        <div class="result" id="askResult">Enter your question and click Ask</div>
+      </div>
+
+      <div id="section-events" class="card hidden">
+        <h2>Group Events Analysis</h2>
+        <div class="date-range">
+          <div><label>Start</label><input type="date" id="evStart"></div>
+          <div><label>End</label><input type="date" id="evEnd"></div>
+        </div>
+        <div class="actions"><button id="evBtn">Analyze Events</button></div>
+        <div class="result" id="evResult">Select date range and click Analyze Events</div>
+      </div>
+
+      <div id="section-sentiment" class="card hidden">
+        <h2>Sentiment Analysis</h2>
+        <div class="date-range">
+          <div><label>Start</label><input type="date" id="senStart"></div>
+          <div><label>End</label><input type="date" id="senEnd"></div>
+        </div>
+        <div class="actions"><button id="senBtn">Analyze Sentiment</button></div>
+        <div class="result" id="senResult">Select date range and click Analyze Sentiment</div>
+      </div>
+
+      <div id="section-activity" class="card hidden">
+        <h2>Activity Analysis</h2>
+        <div class="date-range">
+          <div><label>Specific Date (Hourly)</label><input type="date" id="actDate"></div>
+          <div><label>Weekly Start</label><input type="date" id="actWeekStart"></div>
+          <div><label>Weekly End</label><input type="date" id="actWeekEnd"></div>
+          <div><label>Start Date</label><input type="date" id="actStart"></div>
+          <div><label>End Date</label><input type="date" id="actEnd"></div>
+        </div>
+        <div class="actions"><button id="actBtn">Analyze Activity</button></div>
+        <div class="result" id="actResult">Select date range and click Analyze Activity</div>
+      </div>
+
+      <div id="section-history" class="card hidden">
+        <h2>History</h2>
+        <div class="result" id="historyList">No history yet.</div>
+      </div>
+    </section>
+  </main>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+  // Get group from URL parameters
+  const params = new URLSearchParams(window.location.search);
+  const group = params.get('group');
+  const currentGroup = document.getElementById('currentGroup');
+  
+  // Set group name or show error
+  if (group) {
+    currentGroup.textContent = group;
+  } else {
+    currentGroup.textContent = 'No group selected';
+    currentGroup.style.color = 'var(--error)';
+  }
+
+  const sidebarToggle = document.getElementById('sidebarToggle');
+  const layout = document.getElementById('dashLayout');
+  const menu = document.getElementById('menu');
+
+  // Get CSRF token from meta tag
+  function csrfToken(){
+    const meta = document.querySelector('meta[name="csrf-token"]');
+    return meta ? meta.getAttribute('content') : '';
+  }
+
+  // Sidebar collapse
+  sidebarToggle.addEventListener('click', ()=>{
+    layout.classList.toggle('sidebar--collapsed');
+  });
+
+  // Section routing
+  menu.querySelectorAll('a').forEach(a=>{
+    a.addEventListener('click', (e)=>{
+      e.preventDefault();
+      const id = a.getAttribute('data-section');
+      // activate tab
+      menu.querySelectorAll('a').forEach(x=>x.classList.remove('active'));
+      a.classList.add('active');
+      // show section
+      document.querySelectorAll('[id^="section-"]').forEach(s=>s.classList.add('hidden'));
+      document.getElementById(`section-${id}`).classList.remove('hidden');
+    });
+  });
+
+  // History util (local storage)
+  function addHistory(entry){
+    const key = 'wa_history';
+    const prev = JSON.parse(localStorage.getItem(key) || '[]');
+    prev.unshift({ ts: new Date().toISOString(), group: group || '', ...entry });
+    localStorage.setItem(key, JSON.stringify(prev.slice(0, 100)));
+    renderHistory();
+  }
+  
+  function renderHistory(){
+    const key = 'wa_history';
+    const items = JSON.parse(localStorage.getItem(key) || '[]');
+    const target = document.getElementById('historyList');
+    if(!items.length){ 
+      target.innerHTML = '<div class="empty-state">No history yet.</div>'; 
+      return; 
+    }
+    const wrap = document.createElement('div');
+    items.forEach(it=>{
+      const d = new Date(it.ts);
+      const div = document.createElement('div');
+      div.className = 'user-message-item-small';
+      div.textContent = `${d.toLocaleString()} • ${it.type} • Group: ${it.group}`;
+      wrap.appendChild(div);
+    });
+    target.innerHTML = '';
+    target.appendChild(wrap);
+  }
+
+  // Summary
+  const sumResult = document.getElementById('sumResult');
+  const sumStart = document.getElementById('sumStart');
+  const sumEnd = document.getElementById('sumEnd');
+  const sumUser = document.getElementById('sumUser');
+  const userSelectWrap = document.getElementById('userSelectWrap');
+  const userWiseOptions = document.getElementById('userWiseOptions');
+
+  async function postJson(url, body){
+    try {
+      const res = await fetch(url, { 
+        method: 'POST', 
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': csrfToken()
+        }, 
+        body: JSON.stringify(body)
+      });
+      
+      if(!res.ok){ 
+        const errorText = await res.text();
+        throw new Error(`Server responded with ${res.status}: ${errorText}`); 
+      }
+      return res.json();
+    } catch (error) {
+      console.error('Request failed:', error);
+      throw error;
+    }
+  }
+
+  function datePayload(){
+    return { 
+      start_date: sumStart.value || null, 
+      end_date: sumEnd.value || null 
+    };
+  }
+
+  // Hide all sub-options
+  function hideSubOptions(){
+    userWiseOptions.style.display = 'none';
+  }
+
+  // Main button listeners
+  document.getElementById('userWiseBtn').addEventListener('click', ()=>{
+    hideSubOptions();
+    userWiseOptions.style.display = 'block';
+  });
+
+  // Get Users button
+  document.getElementById('getUsersBtn').addEventListener('click', async ()=>{
+    userSelectWrap.style.display = 'none';
+    sumResult.innerHTML = '<div class="loading"><div class="spinner"></div>Loading users...</div>';
+    
+    try {
+      if (!group) {
+        throw new Error('No group selected');
+      }
+      
+      const data = await postJson('/summarize/', { 
+        group_name: group, 
+        summary_type: 'user_wise', 
+        ...datePayload() 
+      });
+      
+      if(data.users && data.users.length > 0){
+        userSelectWrap.style.display = 'block';
+        sumUser.innerHTML = '';
+        data.users.forEach(u=>{
+          const opt = document.createElement('option');
+          opt.value = u; 
+          opt.textContent = u; 
+          sumUser.appendChild(opt);
+        });
+        sumResult.innerHTML = '<div class="success">Users loaded. Select user then click "Show Messages".</div>';
+      } else {
+        sumResult.innerHTML = '<div class="error">No users found for this group.</div>';
+      }
+    } catch (error) {
+      console.error('Error loading users:', error);
+      sumResult.innerHTML = `<div class="error">Error loading users: ${error.message}</div>`;
+    }
+  });
+
+  // Action buttons
+  document.querySelectorAll('.sum-btn').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      let summary_type = btn.getAttribute('data-type');
+      if(!summary_type) return; // Skip if no data-type
+      
+      if (!group) {
+        sumResult.innerHTML = '<div class="error">No group selected. Please select a group first.</div>';
+        return;
+      }
+      
+      if(summary_type === 'auto'){
+        const startDate = new Date(sumStart.value);
+        const endDate = new Date(sumEnd.value);
+        const daysDiff = (endDate - startDate) / (1000 * 60 * 60 * 24);
+        summary_type = daysDiff > 7 ? 'weekly_summary' : 'brief';
+      }
+      
+      const body = { 
+        group_name: group, 
+        summary_type, 
+        ...datePayload() 
+      };
+      
+      if(summary_type === 'user_messages_for_user') {
+        if (!sumUser.value) {
+          sumResult.innerHTML = '<div class="error">Please select a user first.</div>';
+          return;
+        }
+        body.user = sumUser.value;
+      }
+      
+      sumResult.innerHTML = '<div class="loading"><div class="spinner"></div>Processing...</div>';
+      
+      try {
+        const data = await postJson('/summarize/', body);
+        
+        if(summary_type === 'weekly_summary'){
+          let output = '<div class="weekly-summary">';
+          if(data.weekly_summaries && data.weekly_summaries.length > 0) {
+            data.weekly_summaries.forEach((week, index) => {
+              output += `
+                <div class="weekly-summary-item">
+                  <h3>Week ${index+1} (${week.date_range})</h3>
+                  <p>${week.summary}</p>
+                </div>
+              `;
+            });
+          } else {
+            output += '<p>No weekly summaries available.</p>';
+          }
+          output += '</div>';
+          sumResult.innerHTML = output;
+        } else if(summary_type === 'brief'){
+          sumResult.innerHTML = `<div class="brief-summary">${data.summary || 'No summary available.'}</div>`;
+        } else if(summary_type === 'user_messages'){
+          let output = '<div class="user-messages">';
+          if(data.user_messages && Object.keys(data.user_messages).length > 0) {
+            for(const [user, messages] of Object.entries(data.user_messages)){
+              output += `
+                <div class="user-section">
+                  <h3>User: ${user}</h3>
+                  <div class="messages-list">
+              `;
+              messages.forEach(msg => {
+                output += `
+                  <div class="message-item">
+                    <div class="message-time">${msg.timestamp}</div>
+                    <div class="message-text">${msg.message}</div>
+                  </div>
+                `;
+              });
+              output += `
+                  </div>
+                </div>
+              `;
+            }
+          } else {
+            output += '<p>No user messages found.</p>';
+          }
+          output += '</div>';
+          sumResult.innerHTML = output;
+        } else if(summary_type === 'user_messages_for_user'){
+          let output = `
+            <div class="user-messages">
+              <h3>User: ${body.user}</h3>
+              <div class="messages-list">
+          `;
+          
+          if(data.user_messages && data.user_messages.length > 0) {
+            data.user_messages.forEach(msg => {
+              output += `
+                <div class="message-item">
+                  <div class="message-time">${msg.timestamp}</div>
+                  <div class="message-text">${msg.message}</div>
+                </div>
+              `;
+            });
+          } else {
+            output += '<p>No messages found for this user.</p>';
+          }
+          
+          output += `
+              </div>
+            </div>
+          `;
+          sumResult.innerHTML = output;
+        } else {
+          sumResult.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+        }
+        
+        addHistory({ type: 'Summary' });
+      } catch (error) {
+        console.error('Error generating summary:', error);
+        sumResult.innerHTML = `<div class="error">Error generating summary: ${error.message}</div>`;
+      }
+    });
+  });
+
+  // Ask
+  const askBtn = document.getElementById('askBtn');
+  const askText = document.getElementById('askText');
+  const askStart = document.getElementById('askStart');
+  const askEnd = document.getElementById('askEnd');
+  const askResult = document.getElementById('askResult');
+  
+  askBtn.addEventListener('click', async ()=>{
+    const question = askText.value.trim();
+    
+    if (!question) {
+      askResult.innerHTML = '<div class="error">Please enter a question.</div>';
+      return;
+    }
+    
+    if (!group) {
+      askResult.innerHTML = '<div class="error">No group selected. Please select a group first.</div>';
+      return;
+    }
+    
+    askResult.innerHTML = '<div class="loading"><div class="spinner"></div>Processing...</div>';
+    
+    try {
+      const data = await postJson('/ask/', { 
+        group_name: group, 
+        question: question, 
+        start_date: askStart.value || null, 
+        end_date: askEnd.value || null 
+      });
+      
+      askResult.innerHTML = `
+        <div class="answer-container">
+          <h3>Question: ${question}</h3>
+          <div class="answer-text">${data.answer || 'No answer available.'}</div>
+        </div>
+      `;
+      
+      addHistory({ type: 'Ask', question: question.substring(0, 50) + '...' });
+    } catch (error) {
+      console.error('Error answering question:', error);
+      askResult.innerHTML = `<div class="error">Error answering question: ${error.message}</div>`;
+    }
+  });
+
+  // Events
+  const evBtn = document.getElementById('evBtn');
+  const evStart = document.getElementById('evStart');
+  const evEnd = document.getElementById('evEnd');
+  const evResult = document.getElementById('evResult');
+  
+  evBtn.addEventListener('click', async ()=>{
+    if (!group) {
+      evResult.innerHTML = '<div class="error">No group selected. Please select a group first.</div>';
+      return;
+    }
+    
+    evResult.innerHTML = '<div class="loading"><div class="spinner"></div>Processing...</div>';
+    
+    try {
+      const data = await postJson('/group_events/', { 
+        group_name: group, 
+        start_date: evStart.value || null, 
+        end_date: evEnd.value || null 
+      });
+      
+      let output = '<div class="events-analysis">';
+      
+      if (data.event_counts) {
+        output += '<h3>Event Counts</h3><ul>';
+        for (const [event, count] of Object.entries(data.event_counts)) {
+          output += `<li>${event}: ${count}</li>`;
+        }
+        output += '</ul>';
+      }
+      
+      if (data.top_removers && data.top_removers.length > 0) {
+        output += '<h3>Top Removers</h3><ol>';
+        data.top_removers.forEach(remover => {
+          output += `<li>${remover.user}: ${remover.count} removals</li>`;
+        });
+        output += '</ol>';
+      }
+      
+      output += '</div>';
+      evResult.innerHTML = output;
+      
+      addHistory({ type: 'Group Events' });
+    } catch (error) {
+      console.error('Error analyzing events:', error);
+      evResult.innerHTML = `<div class="error">Error analyzing events: ${error.message}</div>`;
+    }
+  });
+
+  // Sentiment
+  const senBtn = document.getElementById('senBtn');
+  const senStart = document.getElementById('senStart');
+  const senEnd = document.getElementById('senEnd');
+  const senResult = document.getElementById('senResult');
+  
+  senBtn.addEventListener('click', async ()=>{
+    if (!group) {
+      senResult.innerHTML = '<div class="error">No group selected. Please select a group first.</div>';
+      return;
+    }
+    
+    senResult.innerHTML = '<div class="loading"><div class="spinner"></div>Processing...</div>';
+    
+    try {
+      const data = await postJson('/sentiment/', { 
+        group_name: group, 
+        start_date: senStart.value || null, 
+        end_date: senEnd.value || null 
+      });
+      
+      let output = '<div class="sentiment-analysis">';
+      
+      if (data.sentiment_breakdown) {
+        output += '<h3>Sentiment Breakdown</h3><ul>';
+        for (const [sentiment, count] of Object.entries(data.sentiment_breakdown)) {
+          output += `<li>${sentiment}: ${count}</li>`;
+        }
+        output += '</ul>';
+      }
+      
+      if (data.daily_sentiment) {
+        output += '<h3>Daily Sentiment Trends</h3>';
+        output += '<div class="chart-placeholder">Chart would be displayed here</div>';
+      }
+      
+      output += '</div>';
+      senResult.innerHTML = output;
+      
+      addHistory({ type: 'Sentiment' });
+    } catch (error) {
+      console.error('Error analyzing sentiment:', error);
+      senResult.innerHTML = `<div class="error">Error analyzing sentiment: ${error.message}</div>`;
+    }
+  });
+
+  // Activity
+  const actBtn = document.getElementById('actBtn');
+  const actDate = document.getElementById('actDate');
+  const actWeekStart = document.getElementById('actWeekStart');
+  const actWeekEnd = document.getElementById('actWeekEnd');
+  const actStart = document.getElementById('actStart');
+  const actEnd = document.getElementById('actEnd');
+  const actResult = document.getElementById('actResult');
+  
+  actBtn.addEventListener('click', async ()=>{
+    if (!group) {
+      actResult.innerHTML = '<div class="error">No group selected. Please select a group first.</div>';
+      return;
+    }
+    
+    actResult.innerHTML = '<div class="loading"><div class="spinner"></div>Processing...</div>';
+    
+    try {
+      const data = await postJson('/activity_analysis/', { 
+        group_name: group, 
+        specific_date: actDate.value || null, 
+        week_start: actWeekStart.value || null, 
+        week_end: actWeekEnd.value || null, 
+        start_date: actStart.value || null,
+        end_date: actEnd.value || null
+      });
+      
+      // Summary cards
+      let output = '<div class="activity-summary-cards" style="display:flex;gap:20px;margin-bottom:20px;flex-wrap:wrap;">';
+      const weeks = data.weeks || [];
+      // Calculate summary values from weeks or data
+      let totalMessages = 0;
+      let mostActiveDay = 'N/A';
+      let peakHour = 'N/A';
+      let mostActiveUser = 'N/A';
+      if (weeks.length > 0) {
+        // Aggregate across all weeks
+        let dayCounts = Array(7).fill(0);
+        let hourCounts = Array(24).fill(0);
+        let userCounts = {};
+        weeks.forEach(w => {
+          totalMessages += w.message_count;
+          // Daily
+          Object.entries(w.daily_activity).forEach(([d, c]) => { dayCounts[d] += c; });
+          // Hourly
+          Object.entries(w.hourly_activity).forEach(([h, c]) => { hourCounts[h] += c; });
+          // Users
+          Object.entries(w.message_counts).forEach(([u, c]) => { userCounts[u] = (userCounts[u]||0)+c; });
+        });
+        // Most active day
+        const dayNames = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+        let maxDayIdx = dayCounts.findIndex(v => v === Math.max(...dayCounts));
+        if (dayCounts[maxDayIdx] > 0) mostActiveDay = dayNames[maxDayIdx];
+        // Peak hour
+        let maxHourIdx = hourCounts.findIndex(v => v === Math.max(...hourCounts));
+        if (hourCounts[maxHourIdx] > 0) peakHour = maxHourIdx + ':00';
+        // Most active user
+        let maxUser = Object.entries(userCounts).sort((a,b)=>b[1]-a[1])[0];
+        if (maxUser && maxUser[1] > 0) mostActiveUser = maxUser[0];
+      } else {
+        // fallback to data.message_counts, data.daily_activity, data.hourly_activity
+        totalMessages = Object.values(data.message_counts||{}).reduce((a,b)=>a+b,0);
+      }
+      output += `<div class="summary-card"><div>Most Active Day</div><div style="font-size:1.5em;font-weight:bold;">${mostActiveDay}</div></div>`;
+      output += `<div class="summary-card"><div>Peak Hour</div><div style="font-size:1.5em;font-weight:bold;">${peakHour}</div></div>`;
+      output += `<div class="summary-card"><div>Total Messages</div><div style="font-size:1.5em;font-weight:bold;">${totalMessages}</div></div>`;
+      output += `<div class="summary-card"><div>Most Active User</div><div style="font-size:1.5em;font-weight:bold;">${mostActiveUser}</div></div>`;
+      output += '</div>';
+
+      // Week cards
+      if (weeks.length > 0) {
+        output += '<div><h3>Select Week to Analyze</h3><div style="display:flex;gap:16px;flex-wrap:wrap;">';
+        weeks.forEach((w,i)=>{
+          output += `<div class="week-card" style="border:1px solid #ddd;padding:16px;border-radius:8px;min-width:180px;${i===0?'background:#e6f7ef;':''}">`;
+          output += `<div style="font-weight:bold;">Week ${i+1}</div>`;
+          output += `<div>${w.start} - ${w.end}</div>`;
+          output += `<div style="margin-top:8px;"><span style="color:#16a34a;font-weight:bold;">${w.message_count} messages</span> <span style="color:#888;">${w.users.length} users</span></div>`;
+          output += '</div>';
+        });
+        output += '</div></div>';
+      }
+
+      actResult.innerHTML = output;
+      addHistory({ type: 'Activity' });
+    } catch (error) {
+      console.error('Error analyzing activity:', error);
+      actResult.innerHTML = `<div class="error">Error analyzing activity: ${error.message}</div>`;
+    }
+  });
+
+  // Initial history render
+  renderHistory();
+  
+  // Set default dates to last 30 days
+  const today = new Date();
+  const thirtyDaysAgo = new Date(today);
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  
+  const formatDate = (date) => date.toISOString().split('T')[0];
+  
+  // Set default dates for all date inputs
+  document.querySelectorAll('input[type="date"]').forEach(input => {
+    if (!input.value) {
+      if (input.id.includes('Start')) {
+        input.value = formatDate(thirtyDaysAgo);
+      } else if (input.id.includes('End')) {
+        input.value = formatDate(today);
+      }
+    }
+  });
+});
+</script>
+
+<style>
+/* Additional styles for better UX */
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  color: var(--text-muted);
+}
+
+.spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--border);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-right: 10px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.error {
+  color: var(--error);
+  padding: 10px;
+  border-radius: 4px;
+  background-color: rgba(239, 68, 68, 0.1);
+  margin: 10px 0;
+}
+
+.success {
+  color: var(--success);
+  padding: 10px;
+  border-radius: 4px;
+  background-color: rgba(16, 185, 129, 0.1);
+  margin: 10px 0;
+}
+
+.weekly-summary-item, .user-section {
+  margin-bottom: 15px;
+  padding: 10px;
+  border-left: 3px solid var(--primary);
+  background-color: var(--bg-light);
+}
+
+.message-item {
+  margin-bottom: 8px;
+  padding: 8px;
+  border-radius: 4px;
+  background-color: var(--bg-white);
+}
+
+.message-time {
+  font-size: 0.8em;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.answer-container {
+  margin-top: 15px;
+}
+
+.answer-text {
+  padding: 15px;
+  background-color: var(--bg-light);
+  border-radius: 4px;
+  white-space: pre-wrap;
+}
+
+.chart-placeholder {
+  height: 200px;
+  background-color: var(--bg-light);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  margin: 10px 0;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 20px;
+  color: var(--text-muted);
+}
+</style>
+{% endblock %}

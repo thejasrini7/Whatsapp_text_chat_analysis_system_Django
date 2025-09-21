@@ -18,7 +18,6 @@ from .summary_generator import (
     generate_user_messages_for_user,
     generate_weekly_summary
 )
-from .topic_analyzer import extract_topics
 
 load_dotenv()
 

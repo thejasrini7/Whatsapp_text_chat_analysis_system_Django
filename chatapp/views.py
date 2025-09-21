@@ -3,7 +3,7 @@ import re
 import json
 import csv
 from datetime import datetime, timedelta
-from django.shortcuts import render
+from django.shortcuts import render, redirect
 from django.http import JsonResponse, HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
@@ -14,16 +14,30 @@ from .models import ChatFile
 from .config import GROQ_API_KEY, MAX_CHARS_FOR_ANALYSIS
 from .utils import parse_timestamp, filter_messages_by_date
 from .business_metrics import calculate_business_metrics
-from .group_event import analyze_group_events, get_event_counts, get_event_details, get_top_removers
+from .group_event import (
+    analyze_group_events,
+    get_event_counts,
+    get_event_details,
+    get_top_removers,
+    _normalize_events,
+    _filter_normalized,
+    compute_timeseries,
+    compute_distribution,
+    compute_most_active_day,
+    compute_top_contributors,
+    extract_unique_actors,
+)
 from .sentiment_analyzer import analyze_sentiment
 from .summary_generator import (
     generate_total_summary, 
     generate_user_messages, 
     get_users_in_messages,
     generate_user_messages_for_user,
-    generate_weekly_summary
+    generate_weekly_summary,
+    generate_brief_summary,
+    generate_daily_user_messages,
+    generate_user_wise_detailed_report
 )
-from .topic_analyzer import extract_topics
 from groq import Groq
 
 load_dotenv()
@@ -93,7 +107,145 @@ def load_all_chats():
     return chat_data
 
 def index(request):
-    return render(request, 'chatapp/index.html')
+    # Redirect legacy root to the new Home page to surface the modern UI
+    return redirect('home')
+
+# New pages for modern UI
+
+def home(request):
+    # Home page with upload + group selection
+    return render(request, 'chatapp/home.html')
+
+def dashboard(request):
+    # Redirect old dashboard to the new React dashboard while preserving query params
+    group = request.GET.get('group', '')
+    return redirect(f"/react-dashboard?group={group}")
+
+def react_dashboard(request):
+    # React + Tailwind + Recharts powered dashboard
+    group = request.GET.get('group', '')
+    context = {
+        'group': group
+    }
+    return render(request, 'chatapp/react_dashboard.html', context)
+
+# ------------------- Group Events Dashboard (Bootstrap) -------------------
+
+def group_events_page(request):
+    return render(request, 'chatapp/group_events_dashboard.html')
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def group_events_analytics(request):
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "Invalid JSON data"}, status=400)
+
+    group_name = data.get('group_name')
+    start_date_str = data.get('start_date')
+    end_date_str = data.get('end_date')
+    event_types = data.get('event_types')  # list or None
+    user = data.get('user')  # string or None
+
+    if not group_name:
+        return JsonResponse({"error": "Invalid group name"}, status=400)
+
+    chat_data = load_all_chats()
+    if group_name not in chat_data:
+        return JsonResponse({"error": "Group not found"}, status=404)
+
+    messages = chat_data[group_name]['messages']
+    # First pass filter coarse by date for performance
+    filtered_messages = filter_messages_by_date(messages, start_date_str, end_date_str)
+    if not filtered_messages:
+        return JsonResponse({"error": "No messages found in the selected date range"}, status=400)
+
+    # Build events and normalize
+    events = analyze_group_events(filtered_messages)
+    normalized = _normalize_events(events)
+
+    # Prepare datetime bounds for fine filtering
+    start_dt = datetime.strptime(start_date_str, '%Y-%m-%d') if start_date_str else None
+    end_dt = datetime.strptime(end_date_str, '%Y-%m-%d') if end_date_str else None
+    if end_dt:
+        end_dt = end_dt.replace(hour=23, minute=59, second=59)
+
+    rows = _filter_normalized(normalized, start_dt, end_dt, event_types, user)
+
+    # Aggregations
+    timeseries = compute_timeseries(rows)
+    distribution = compute_distribution(rows)
+    most_active = compute_most_active_day(timeseries)
+    top_contributors = compute_top_contributors(rows, limit=5)
+
+    # Card counts from filtered rows
+    card_counts = {'added': 0, 'left': 0, 'removed': 0, 'changed_subject': 0, 'changed_icon': 0, 'created': 0}
+    for r in rows:
+        card_counts[r['event_type']] += 1
+
+    actors = extract_unique_actors(rows)
+
+    return JsonResponse({
+        "event_counts": card_counts,
+        "insights": {
+            "most_active_day": most_active,  # e.g., {date, total, ...}
+            "total_events": distribution.get('total', 0),
+            "top_contributors": top_contributors,
+        },
+        "timeseries": timeseries,
+        "distribution": distribution,
+        "actors": actors,
+    })
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def group_events_logs(request):
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "Invalid JSON data"}, status=400)
+
+    group_name = data.get('group_name')
+    start_date_str = data.get('start_date')
+    end_date_str = data.get('end_date')
+    event_types = data.get('event_types')
+    user = data.get('user')
+
+    if not group_name:
+        return JsonResponse({"error": "Invalid group name"}, status=400)
+
+    chat_data = load_all_chats()
+    if group_name not in chat_data:
+        return JsonResponse({"error": "Group not found"}, status=404)
+
+    messages = chat_data[group_name]['messages']
+    filtered_messages = filter_messages_by_date(messages, start_date_str, end_date_str)
+    if not filtered_messages:
+        return JsonResponse({"events": []})
+
+    events = analyze_group_events(filtered_messages)
+    normalized = _normalize_events(events)
+
+    start_dt = datetime.strptime(start_date_str, '%Y-%m-%d') if start_date_str else None
+    end_dt = datetime.strptime(end_date_str, '%Y-%m-%d') if end_date_str else None
+    if end_dt:
+        end_dt = end_dt.replace(hour=23, minute=59, second=59)
+
+    rows = _filter_normalized(normalized, start_dt, end_dt, event_types, user)
+
+    # Shape rows for table
+    table_rows = []
+    for r in rows:
+        table_rows.append({
+            'event_type': r['event_type'],
+            'actor': r['actor'],
+            'target': r['target'],
+            'timestamp': r['dt'].strftime('%d-%b-%Y %I:%M %p'),
+            'details': r['details'] or '',
+        })
+
+    return JsonResponse({"events": table_rows})
 
 @require_http_methods(["GET"])
 def get_groups(request):
@@ -201,6 +353,20 @@ def summarize(request):
         weekly_summaries = generate_weekly_summary(filtered_messages)
         return JsonResponse({"summary_type": "weekly_summary", "weekly_summaries": weekly_summaries})
     
+    elif summary_type == 'brief':
+        summary = generate_brief_summary(filtered_messages)
+        return JsonResponse({"summary_type": "brief", "summary": summary})
+    
+    elif summary_type == 'daily_user_messages':
+        daily_summaries = generate_daily_user_messages(filtered_messages)
+        return JsonResponse({"summary_type": "daily_user_messages", "daily_summaries": daily_summaries})
+    
+    elif summary_type == 'user_wise_detailed':
+        if not user:
+            return JsonResponse({"error": "No user specified"}, status=400)
+        user_messages = generate_user_wise_detailed_report(filtered_messages, user)
+        return JsonResponse({"summary_type": "user_wise_detailed", "user": user, "user_messages": user_messages})
+    
     else:
         return JsonResponse({"error": "Invalid summary type"}, status=400)
 
@@ -272,12 +438,17 @@ def group_events(request):
     messages = chat_data[group_name]['messages']
     filtered_messages = filter_messages_by_date(messages, start_date_str, end_date_str)
     
+    print(f"Found {len(filtered_messages)} messages in date range")
+    
     if not filtered_messages:
         return JsonResponse({"error": "No messages found in the selected date range"}, status=400)
     
     events = analyze_group_events(filtered_messages)
     event_counts = get_event_counts(events)
     top_removers = get_top_removers(events)
+    
+    print(f"Event counts: {event_counts}")
+    print(f"Total events found: {len(events)}")
     
     return JsonResponse({
         "event_counts": event_counts,
@@ -316,6 +487,381 @@ def event_details(request):
         "events": event_details
     })
 
+def analyze_group_events(messages):
+    """Analyze group events from messages"""
+    events = []
+    
+    print(f"Analyzing {len(messages)} messages for group events...")
+    
+    for i, message in enumerate(messages):
+        text = message.get('message', '').lower()
+        timestamp = message.get('timestamp', '')
+        sender = message.get('sender', 'Unknown')
+        original_message = message.get('message', '')
+        
+        # Debug: Print first 10 messages to see what we're working with
+        if i < 10:
+            print(f"Message {i}: '{original_message}' (sender: {sender})")
+        
+        # Check for different event types with better pattern matching
+        if is_added_event(text, original_message):
+            print(f"Found ADDED event: '{original_message}'")
+            added_details = extract_added_details(original_message)
+            events.append({
+                'type': 'added',
+                'timestamp': timestamp,
+                'sender': sender,
+                'raw_message': original_message,
+                'details': added_details,
+                'added_person': extract_person_name(original_message, 'added'),
+                'adder': sender
+            })
+        elif is_left_event(text, original_message):
+            print(f"Found LEFT event: '{original_message}'")
+            left_details = extract_left_details(original_message)
+            events.append({
+                'type': 'left',
+                'timestamp': timestamp,
+                'sender': sender,
+                'raw_message': original_message,
+                'details': left_details,
+                'person': extract_person_name(original_message, 'left')
+            })
+        elif is_removed_event(text, original_message):
+            print(f"Found REMOVED event: '{original_message}'")
+            removed_details = extract_removed_details(original_message)
+            events.append({
+                'type': 'removed',
+                'timestamp': timestamp,
+                'sender': sender,
+                'raw_message': original_message,
+                'details': removed_details,
+                'removed_person': extract_person_name(original_message, 'removed'),
+                'remover': sender
+            })
+        elif is_subject_changed_event(text, original_message):
+            print(f"Found SUBJECT CHANGED event: '{original_message}'")
+            subject_details = extract_subject_change_details(original_message)
+            events.append({
+                'type': 'changed_subject',
+                'timestamp': timestamp,
+                'sender': sender,
+                'raw_message': original_message,
+                'details': subject_details,
+                'changer': sender,
+                'new_subject': extract_subject_name(original_message)
+            })
+        elif is_icon_changed_event(text, original_message):
+            print(f"Found ICON CHANGED event: '{original_message}'")
+            events.append({
+                'type': 'changed_icon',
+                'timestamp': timestamp,
+                'sender': sender,
+                'raw_message': original_message,
+                'details': 'Group icon was changed',
+                'changer': sender
+            })
+        elif is_group_created_event(text, original_message):
+            print(f"Found GROUP CREATED event: '{original_message}'")
+            events.append({
+                'type': 'created',
+                'timestamp': timestamp,
+                'sender': sender,
+                'raw_message': original_message,
+                'details': 'Group was created',
+                'creator': sender
+            })
+    
+    print(f"Found {len(events)} total events")
+    return events
+
+def is_added_event(text, original_message):
+    """Check if message is an 'added' event"""
+    patterns = [
+        'added',
+        'joined',
+        'was added',
+        'has been added',
+        'added to the group',
+        'joined the group',
+        'was added to the group'
+    ]
+    return any(pattern in text for pattern in patterns)
+
+def is_left_event(text, original_message):
+    """Check if message is a 'left' event"""
+    patterns = [
+        'left',
+        'exited',
+        'left the group',
+        'exited the group',
+        'has left',
+        'has exited'
+    ]
+    return any(pattern in text for pattern in patterns)
+
+def is_removed_event(text, original_message):
+    """Check if message is a 'removed' event"""
+    patterns = [
+        'removed',
+        'kicked',
+        'was removed',
+        'has been removed',
+        'removed from the group',
+        'kicked from the group',
+        'was kicked'
+    ]
+    return any(pattern in text for pattern in patterns)
+
+def is_subject_changed_event(text, original_message):
+    """Check if message is a 'subject changed' event"""
+    patterns = [
+        'changed the subject',
+        'changed subject',
+        'subject changed',
+        'changed group subject',
+        'group subject changed'
+    ]
+    return any(pattern in text for pattern in patterns)
+
+def is_icon_changed_event(text, original_message):
+    """Check if message is an 'icon changed' event"""
+    patterns = [
+        'changed the group icon',
+        'changed group icon',
+        'group icon changed',
+        'changed the icon',
+        'icon changed'
+    ]
+    return any(pattern in text for pattern in patterns)
+
+def is_group_created_event(text, original_message):
+    """Check if message is a 'group created' event"""
+    patterns = [
+        'created group',
+        'group created',
+        'created the group',
+        'group was created'
+    ]
+    return any(pattern in text for pattern in patterns)
+
+def get_event_details(events, event_type):
+    """Get details for specific event type"""
+    filtered_events = [event for event in events if event['type'] == event_type]
+    
+    # Sort by timestamp (newest first)
+    filtered_events.sort(key=lambda x: x['timestamp'], reverse=True)
+    
+    return filtered_events
+
+def extract_added_details(message):
+    """Extract details from 'added' event message"""
+    import re
+    
+    # Try to extract who added whom
+    patterns = [
+        r'(\w+(?:\s+\w+)*)\s+added\s+(\w+(?:\s+\w+)*)',
+        r'(\w+(?:\s+\w+)*)\s+has\s+added\s+(\w+(?:\s+\w+)*)'
+    ]
+    
+    for pattern in patterns:
+        match = re.search(pattern, message, re.IGNORECASE)
+        if match:
+            adder = match.group(1).strip()
+            added_person = match.group(2).strip()
+            return f"{adder} added {added_person}"
+    
+    # Fallback
+    if 'added' in message.lower():
+        parts = message.split('added')
+        if len(parts) > 1:
+            return f"Added: {parts[1].strip()}"
+    return "Member was added to the group"
+
+def extract_left_details(message):
+    """Extract details from 'left' event message"""
+    import re
+    
+    # Try to extract who left
+    patterns = [
+        r'(\w+(?:\s+\w+)*)\s+left',
+        r'(\w+(?:\s+\w+)*)\s+exited',
+        r'(\w+(?:\s+\w+)*)\s+has\s+left',
+        r'(\w+(?:\s+\w+)*)\s+has\s+exited'
+    ]
+    
+    for pattern in patterns:
+        match = re.search(pattern, message, re.IGNORECASE)
+        if match:
+            person = match.group(1).strip()
+            return f"{person} left the group"
+    
+    # Fallback
+    if 'left' in message.lower():
+        return f"Left: {message.replace('left', '').strip()}"
+    elif 'exited' in message.lower():
+        return f"Exited: {message.replace('exited', '').strip()}"
+    return "Member left the group"
+
+def extract_removed_details(message):
+    """Extract details from 'removed' event message"""
+    import re
+    
+    # Try to extract who removed whom
+    patterns = [
+        r'(\w+(?:\s+\w+)*)\s+removed\s+(\w+(?:\s+\w+)*)',
+        r'(\w+(?:\s+\w+)*)\s+kicked\s+(\w+(?:\s+\w+)*)',
+        r'(\w+(?:\s+\w+)*)\s+has\s+removed\s+(\w+(?:\s+\w+)*)',
+        r'(\w+(?:\s+\w+)*)\s+has\s+kicked\s+(\w+(?:\s+\w+)*)'
+    ]
+    
+    for pattern in patterns:
+        match = re.search(pattern, message, re.IGNORECASE)
+        if match:
+            remover = match.group(1).strip()
+            removed_person = match.group(2).strip()
+            return f"{remover} removed {removed_person}"
+    
+    # Fallback
+    if 'removed' in message.lower():
+        parts = message.split('removed')
+        if len(parts) > 1:
+            return f"Removed: {parts[1].strip()}"
+    elif 'kicked' in message.lower():
+        parts = message.split('kicked')
+        if len(parts) > 1:
+            return f"Kicked: {parts[1].strip()}"
+    return "Member was removed from the group"
+
+def extract_subject_change_details(message):
+    """Extract details from subject change event message"""
+    # Common patterns: "User changed the subject to 'New Subject'"
+    if 'changed the subject' in message:
+        if 'to' in message:
+            parts = message.split('to')
+            if len(parts) > 1:
+                return f"Subject changed to: {parts[1].strip()}"
+        return "Group subject was changed"
+    return "Group subject was changed"
+
+def extract_person_name(message, event_type):
+    """Extract person name from event message"""
+    import re
+    
+    if event_type == 'added':
+        # Patterns: "John Doe added Jane Smith", "John Doe added Jane Smith and 2 others"
+        patterns = [
+            r'(\w+(?:\s+\w+)*)\s+added\s+(\w+(?:\s+\w+)*)',
+            r'(\w+(?:\s+\w+)*)\s+has\s+added\s+(\w+(?:\s+\w+)*)',
+            r'(\w+(?:\s+\w+)*)\s+added\s+(\w+(?:\s+\w+)*)\s+to\s+the\s+group'
+        ]
+        
+        for pattern in patterns:
+            match = re.search(pattern, message, re.IGNORECASE)
+            if match:
+                return match.group(2).strip()
+        
+        # Fallback: split by 'added'
+        if 'added' in message.lower():
+            parts = message.split('added')
+            if len(parts) > 1:
+                name = parts[1].strip()
+                # Remove common suffixes
+                name = re.sub(r'\s+and\s+\d+\s+others?', '', name)
+                name = re.sub(r'\s+to\s+the\s+group', '', name)
+                return name.strip()
+                
+    elif event_type == 'left':
+        # Patterns: "John Doe left", "John Doe exited"
+        patterns = [
+            r'(\w+(?:\s+\w+)*)\s+left',
+            r'(\w+(?:\s+\w+)*)\s+exited',
+            r'(\w+(?:\s+\w+)*)\s+has\s+left',
+            r'(\w+(?:\s+\w+)*)\s+has\s+exited'
+        ]
+        
+        for pattern in patterns:
+            match = re.search(pattern, message, re.IGNORECASE)
+            if match:
+                return match.group(1).strip()
+        
+        # Fallback
+        if 'left' in message.lower():
+            return message.replace('left', '').strip()
+        elif 'exited' in message.lower():
+            return message.replace('exited', '').strip()
+            
+    elif event_type == 'removed':
+        # Patterns: "John Doe removed Jane Smith", "John Doe kicked Jane Smith"
+        patterns = [
+            r'(\w+(?:\s+\w+)*)\s+removed\s+(\w+(?:\s+\w+)*)',
+            r'(\w+(?:\s+\w+)*)\s+kicked\s+(\w+(?:\s+\w+)*)',
+            r'(\w+(?:\s+\w+)*)\s+has\s+removed\s+(\w+(?:\s+\w+)*)',
+            r'(\w+(?:\s+\w+)*)\s+has\s+kicked\s+(\w+(?:\s+\w+)*)'
+        ]
+        
+        for pattern in patterns:
+            match = re.search(pattern, message, re.IGNORECASE)
+            if match:
+                return match.group(2).strip()
+        
+        # Fallback
+        if 'removed' in message.lower():
+            parts = message.split('removed')
+            if len(parts) > 1:
+                return parts[1].strip()
+        elif 'kicked' in message.lower():
+            parts = message.split('kicked')
+            if len(parts) > 1:
+                return parts[1].strip()
+    
+    return 'Unknown'
+
+def extract_subject_name(message):
+    """Extract new subject name from subject change message"""
+    if 'changed the subject to' in message:
+        parts = message.split('to')
+        if len(parts) > 1:
+            subject = parts[1].strip()
+            # Remove quotes if present
+            subject = subject.strip('"').strip("'")
+            return subject
+    return 'New Subject'
+
+def get_event_counts(events):
+    """Get count of each event type"""
+    counts = {
+        'added': 0,
+        'left': 0,
+        'removed': 0,
+        'changed_subject': 0,
+        'changed_icon': 0,
+        'created': 0
+    }
+    
+    for event in events:
+        event_type = event.get('type', '')
+        if event_type in counts:
+            counts[event_type] += 1
+    
+    return counts
+
+def get_top_removers(events):
+    """Get top users who removed others"""
+    remover_counts = {}
+    
+    for event in events:
+        if event.get('type') == 'removed':
+            remover = event.get('remover', 'Unknown')
+            if remover in remover_counts:
+                remover_counts[remover] += 1
+            else:
+                remover_counts[remover] = 1
+    
+    # Sort by count and return top 5
+    sorted_removers = sorted(remover_counts.items(), key=lambda x: x[1], reverse=True)
+    return [{'user': user, 'count': count} for user, count in sorted_removers[:5]]
+
 @csrf_exempt
 @require_http_methods(["POST"])
 def sentiment(request):
@@ -346,35 +892,6 @@ def sentiment(request):
 
 @csrf_exempt
 @require_http_methods(["POST"])
-def topic_analysis(request):
-    try:
-        data = json.loads(request.body)
-    except json.JSONDecodeError:
-        return JsonResponse({"error": "Invalid JSON data"}, status=400)
-        
-    group_name = data.get('group_name')
-    start_date_str = data.get('start_date')
-    end_date_str = data.get('end_date')
-    top_n = int(data.get('top_n', 5))
-    
-    if not group_name:
-        return JsonResponse({"error": "Invalid group name"}, status=400)
-    
-    chat_data = load_all_chats()
-    if group_name not in chat_data:
-        return JsonResponse({"error": "Group not found"}, status=404)
-    
-    messages = chat_data[group_name]['messages']
-    filtered_messages = filter_messages_by_date(messages, start_date_str, end_date_str)
-    
-    if not filtered_messages:
-        return JsonResponse({"error": "No messages found in the selected date range"}, status=400)
-    
-    topics = extract_topics(filtered_messages, top_n=top_n)
-    return JsonResponse({"topics": topics})
-
-@csrf_exempt
-@require_http_methods(["POST"])
 def activity_analysis(request):
     try:
         data = json.loads(request.body)
@@ -385,15 +902,27 @@ def activity_analysis(request):
     specific_date_str = data.get('specific_date')  # For hourly analysis
     week_start_str = data.get('week_start')       # For weekly analysis
     week_end_str = data.get('week_end')           # For weekly analysis
+    start_date_str = data.get('start_date')       # Generic range
+    end_date_str = data.get('end_date')
+    user_filter = data.get('user')                # Optional user filter
+    include_messages = bool(data.get('include_messages', False))
     
     if not group_name:
         return JsonResponse({"error": "Invalid group name"}, status=400)
     
-    chat_data = load_all_chats()
-    if group_name not in chat_data:
-        return JsonResponse({"error": "Group not found"}, status=404)
+    try:
+        chat_data = load_all_chats()
+        if group_name not in chat_data:
+            return JsonResponse({"error": "Group not found"}, status=404)
+    except Exception as e:
+        print(f"Error loading chat data: {e}")
+        return JsonResponse({"error": "Failed to load chat data"}, status=500)
     
     messages = chat_data[group_name]['messages']
+    
+    # Pre-filter by user if provided
+    if user_filter:
+        messages = [m for m in messages if m.get('sender') == user_filter]
     
     # Filter messages based on the provided date parameters
     if specific_date_str:
@@ -413,17 +942,139 @@ def activity_analysis(request):
                             parse_timestamp(msg['timestamp']) and 
                             start_date <= parse_timestamp(msg['timestamp']) <= end_date]
         analysis_type = "weekly"
+    elif start_date_str and end_date_str:
+        # Generic date range analysis
+        filtered_messages = filter_messages_by_date(messages, start_date_str, end_date_str)
+        analysis_type = "range"
     else:
         # Default to all messages
         filtered_messages = messages
         analysis_type = "all"
     
+
+    # Apply user filter again after date filtering (safety)
+    if user_filter:
+        filtered_messages = [m for m in filtered_messages if m.get('sender') == user_filter]
+
     if not filtered_messages:
         return JsonResponse({"error": "No messages found in the selected date range"}, status=400)
-    
-    activity_data = calculate_business_metrics(filtered_messages)
-    activity_data['analysis_type'] = analysis_type
-    
+
+    try:
+        # For very large datasets, limit the number of messages to prevent timeout
+        max_messages = 50000  # Limit to 50k messages for performance
+        if len(filtered_messages) > max_messages:
+            print(f"Large dataset detected ({len(filtered_messages)} messages), limiting to {max_messages}")
+            filtered_messages = filtered_messages[:max_messages]
+        
+        raw_metrics = calculate_business_metrics(filtered_messages)
+    except Exception as e:
+        print(f"Error calculating business metrics: {e}")
+        return JsonResponse({"error": "Failed to calculate metrics"}, status=500)
+
+    # Transform to frontend-expected shape
+    # Hourly: ensure 0-23 keys
+    hourly_activity = {h: int(raw_metrics.get('activity_by_hour', {}).get(h, 0)) for h in range(24)}
+
+    # Daily: map names to 0..6 (Sun..Sat)
+    day_index = {'Sunday': 0, 'Monday': 1, 'Tuesday': 2, 'Wednesday': 3, 'Thursday': 4, 'Friday': 5, 'Saturday': 6}
+    daily_activity = {i: 0 for i in range(7)}
+    for day_name, cnt in raw_metrics.get('activity_by_day', {}).items():
+        idx = day_index.get(day_name)
+        if idx is not None:
+            daily_activity[idx] = int(cnt)
+
+    message_counts = raw_metrics.get('messages_per_user', {})
+
+    # Build list of all users for the selected period ignoring the user filter
+    available_users = []
+    try:
+        base_msgs = chat_data[group_name]['messages']
+        if specific_date_str:
+            _start = datetime.strptime(specific_date_str, '%Y-%m-%d')
+            _end = _start.replace(hour=23, minute=59, second=59)
+            period_msgs = [m for m in base_msgs if parse_timestamp(m['timestamp']) and _start <= parse_timestamp(m['timestamp']) <= _end]
+        elif week_start_str and week_end_str:
+            _start = datetime.strptime(week_start_str, '%Y-%m-%d')
+            _end = datetime.strptime(week_end_str, '%Y-%m-%d').replace(hour=23, minute=59, second=59)
+            period_msgs = [m for m in base_msgs if parse_timestamp(m['timestamp']) and _start <= parse_timestamp(m['timestamp']) <= _end]
+        elif start_date_str and end_date_str:
+            period_msgs = filter_messages_by_date(base_msgs, start_date_str, end_date_str)
+        else:
+            period_msgs = base_msgs
+        available_users = sorted({m.get('sender') for m in period_msgs if m.get('sender')})
+    except Exception:
+        available_users = []
+
+    # --- Week splitting logic for frontend week cards ---
+    weeks = []
+    if start_date_str and end_date_str:
+        try:
+            # Split the selected period into weeks (Monday-Sunday)
+            start_dt = datetime.strptime(start_date_str, '%Y-%m-%d')
+            end_dt = datetime.strptime(end_date_str, '%Y-%m-%d')
+            # Align start to previous Monday
+            start_of_week = start_dt - timedelta(days=start_dt.weekday())
+            current = start_of_week
+            while current <= end_dt:
+                week_start = current
+                week_end = min(current + timedelta(days=6), end_dt)
+                week_msgs = [m for m in filtered_messages if parse_timestamp(m['timestamp']) and week_start <= parse_timestamp(m['timestamp']) <= week_end]
+                week_users = sorted({m.get('sender') for m in week_msgs if m.get('sender')})
+                week_message_counts = {}
+                for m in week_msgs:
+                    sender = m.get('sender')
+                    if sender:
+                        week_message_counts[sender] = week_message_counts.get(sender, 0) + 1
+                # Find most active user and peak hour for the week
+                most_active_user = max(week_message_counts.items(), key=lambda x: x[1])[0] if week_message_counts else None
+                # Hourly activity for the week
+                week_hourly = {h: 0 for h in range(24)}
+                for m in week_msgs:
+                    dt = parse_timestamp(m['timestamp'])
+                    if dt:
+                        week_hourly[dt.hour] += 1
+                peak_hour = max(week_hourly.items(), key=lambda x: x[1])[0] if week_hourly else None
+                # Daily activity for the week (0=Sunday, 1=Monday, ..., 6=Saturday)
+                week_daily = {i: 0 for i in range(7)}
+                for m in week_msgs:
+                    dt = parse_timestamp(m['timestamp'])
+                    if dt:
+                        # Convert weekday() to frontend format: 0=Sunday, 1=Monday, etc.
+                        day_index = (dt.weekday() + 1) % 7  # Monday=0 -> Sunday=0, Tuesday=1 -> Monday=1, etc.
+                        week_daily[day_index] += 1
+                week_data = {
+                    'start': week_start.strftime('%Y-%m-%d'),
+                    'end': week_end.strftime('%Y-%m-%d'),
+                    'message_count': len(week_msgs),
+                    'users': week_users,
+                    'message_counts': week_message_counts,
+                    'most_active_user': most_active_user,
+                    'peak_hour': peak_hour,
+                    'daily_activity': {int(k): v for k, v in week_daily.items()},  # Convert string keys to int
+                    'hourly_activity': {int(k): v for k, v in week_hourly.items()},  # Convert string keys to int
+                    'messages': week_msgs,
+                }
+                print(f"Week {len(weeks)+1}: {week_data['start']} - {week_data['end']}, Messages: {len(week_msgs)}, Daily: {week_daily}, Hourly: {week_hourly}")
+                weeks.append(week_data)
+                current += timedelta(days=7)
+        except Exception as e:
+            print(f"Error in week splitting logic: {e}")
+            # Continue without weeks data rather than failing completely
+
+    activity_data = {
+        'total_messages': raw_metrics.get('total_messages', 0),
+        'total_users': raw_metrics.get('total_users', 0),
+        'hourly_activity': hourly_activity,
+        'daily_activity': daily_activity,
+        'message_counts': message_counts,
+        'analysis_type': analysis_type,
+        'all_users': available_users,
+        'weeks': weeks if weeks else None,
+    }
+
+    if include_messages:
+        activity_data['messages'] = filtered_messages
+
     return JsonResponse(activity_data)
 
 @csrf_exempt
@@ -437,6 +1088,10 @@ def export_data(request):
     group_name = data.get('group_name')
     start_date_str = data.get('start_date')
     end_date_str = data.get('end_date')
+    # For PDF export compatibility, define these as None if not present
+    week_start_str = data.get('week_start', None)
+    week_end_str = data.get('week_end', None)
+    specific_date_str = data.get('specific_date', None)
     export_features = data.get('features', [])
     export_format = data.get('format', 'json')
     
@@ -461,9 +1116,6 @@ def export_data(request):
     if 'sentiment' in export_features or 'all' in export_features:
         export_data['sentiment'] = analyze_sentiment(filtered_messages)
     
-    if 'topics' in export_features or 'all' in export_features:
-        export_data['topics'] = extract_topics(filtered_messages, top_n=10)
-    
     if 'activity' in export_features or 'all' in export_features:
         export_data['activity'] = calculate_business_metrics(filtered_messages)
     
@@ -487,16 +1139,70 @@ def export_data(request):
         return response
     
     elif export_format == 'csv':
-        
         response = HttpResponse(content_type='text/csv')
         response['Content-Disposition'] = f'attachment; filename="{filename}.csv"'
-        
         writer = csv.writer(response)
         writer.writerow(['Timestamp', 'Sender', 'Message'])
-        
         for msg in filtered_messages:
             writer.writerow([msg['timestamp'], msg['sender'], msg['message']])
-        
+        return response
+
+    elif export_format == 'excel':
+        try:
+            import io
+            import xlsxwriter
+        except Exception as e:
+            return JsonResponse({"error": "Excel export requires xlsxwriter"}, status=500)
+        output = io.BytesIO()
+        workbook = xlsxwriter.Workbook(output, {'in_memory': True})
+        ws = workbook.add_worksheet('Messages')
+        headers = ['Timestamp', 'Sender', 'Message']
+        for c, h in enumerate(headers):
+            ws.write(0, c, h)
+        for r, msg in enumerate(filtered_messages, start=1):
+            ws.write(r, 0, msg.get('timestamp', ''))
+            ws.write(r, 1, msg.get('sender', ''))
+            ws.write(r, 2, msg.get('message', ''))
+        workbook.close()
+        output.seek(0)
+        response = HttpResponse(output.read(), content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        response['Content-Disposition'] = f'attachment; filename="{filename}.xlsx"'
+        return response
+
+    elif export_format == 'pdf':
+        try:
+            from reportlab.lib.pagesizes import A4
+            from reportlab.pdfgen import canvas
+            from reportlab.lib.units import cm
+            import io
+        except Exception:
+            return JsonResponse({"error": "PDF export requires reportlab"}, status=500)
+        buffer = io.BytesIO()
+        p = canvas.Canvas(buffer, pagesize=A4)
+        width, height = A4
+        y = height - 2*cm
+        p.setFont("Helvetica-Bold", 14)
+        p.drawString(2*cm, y, f"Chat Analysis Report: {group_name}")
+        y -= 1*cm
+        p.setFont("Helvetica", 10)
+        p.drawString(2*cm, y, f"Date range: {start_date_str or week_start_str or specific_date_str} - {end_date_str or week_end_str or specific_date_str}")
+        y -= 1*cm
+        p.setFont("Helvetica-Bold", 12)
+        p.drawString(2*cm, y, "Messages:")
+        y -= 0.7*cm
+        p.setFont("Helvetica", 9)
+        for msg in filtered_messages[:1000]:
+            line = f"{msg.get('timestamp','')} - {msg.get('sender','')}: {msg.get('message','')[:150]}"
+            if y < 2*cm:
+                p.showPage(); y = height - 2*cm; p.setFont("Helvetica", 9)
+            p.drawString(2*cm, y, line)
+            y -= 0.5*cm
+        p.showPage()
+        p.save()
+        pdf = buffer.getvalue()
+        buffer.close()
+        response = HttpResponse(pdf, content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="{filename}.pdf"'
         return response
     
     else:
