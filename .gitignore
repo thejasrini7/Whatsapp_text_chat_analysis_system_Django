@@ -1,23 +1,5 @@
-# Python / Django
+*.pyc
 __pycache__/
-*.py[cod]
-*.so
-*.egg-info/
-*.pytest_cache/
-*.pyenv
-
-# Virtualenv
-venv/
-.env
-.env.*
-
-# Django
 db.sqlite3
-/staticfiles/
-media/
-*.log
-
-# VSCode, OS
-.vscode/
-.DS_Store
-.idea/
+/media/
+*.env

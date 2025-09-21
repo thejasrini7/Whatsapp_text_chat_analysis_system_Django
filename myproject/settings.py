@@ -46,9 +46,10 @@ MIDDLEWARE = [
     'whitenoise.middleware.WhiteNoiseMiddleware',
 ]
 
-
+# Static files
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedStaticFilesStorage'
 
 ROOT_URLCONF = 'myproject.urls'
 
@@ -141,4 +142,11 @@ LOGGING = {
     },
 }
 
-ALLOWED_HOSTS = ['whatsapp_text_analysis_system.onrender.com']
+# Render deployment configuration
+if 'RENDER' in os.environ:
+    ALLOWED_HOSTS = [
+        'whatsapp-text-analysis-system.onrender.com',
+        '*.onrender.com'
+    ]
+else:
+    ALLOWED_HOSTS = ['localhost', '127.0.0.1']
