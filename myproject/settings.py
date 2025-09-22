@@ -21,7 +21,11 @@ SECRET_KEY = 'django-insecure-7xtf^8mx%38rgf_xv&*+oqfk1zf746akl@+*vli@w2w_my49az
 DEBUG = False
 
 # Update this to include your domain when deploying
-ALLOWED_HOSTS = ['localhost', '127.0.0.1']
+ALLOWED_HOSTS = [
+    "whatsapp-text-chat-analysis-system.onrender.com",
+    "127.0.0.1",  # optional, for local testing
+]
+
 
 # Application definition
 INSTALLED_APPS = [
