@@ -5,8 +5,16 @@ from dotenv import load_dotenv
 import os
 
 load_dotenv()
-client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+
+# Use lazy initialization for Groq client to prevent blocking at import time
 MODEL_NAME = "deepseek-r1-distill-llama-70b"
+
+def get_groq_client():
+    """Initialize Groq client only when needed to prevent blocking at import time"""
+    api_key = os.getenv("GROQ_API_KEY")
+    if not api_key:
+        raise ValueError("GROQ_API_KEY environment variable not set")
+    return Groq(api_key=api_key, timeout=30.0)
 
 def parse_timestamp(timestamp_str):
     timestamp_str = timestamp_str.replace('\u202F', ' ')
@@ -33,6 +41,7 @@ def generate_total_summary(messages):
     chat_text = "\n".join([f"{msg['sender']}: {msg['message']}" for msg in messages])
     
     try:
+        client = get_groq_client()
         response = client.chat.completions.create(
             model=MODEL_NAME,
             messages=[
@@ -131,7 +140,6 @@ def clean_summary_text(summary):
             line = re.sub(r'\band\b', '', line, flags=re.IGNORECASE)
             
             # Remove extra spaces between words but preserve formatting
-            # This regex removes spaces between words but preserves spaces around markdown and HTML tags
             line = re.sub(r'(?<!\*|_|<|>)\s+(?!\*|_|<|>)', ' ', line)
             
             # Clean up any double spaces that might remain
@@ -164,6 +172,7 @@ def generate_weekly_summary(messages):
         week_text = "\n".join([f"{msg['sender']}: {msg['message']}" for msg in week_messages])
         
         try:
+            client = get_groq_client()
             response = client.chat.completions.create(
                 model=MODEL_NAME,
                 messages=[
@@ -211,6 +220,7 @@ def generate_brief_summary(messages):
     chat_text = "\n".join([f"{msg['sender']}: {msg['message']}" for msg in messages])
     
     try:
+        client = get_groq_client()
         response = client.chat.completions.create(
             model=MODEL_NAME,
             messages=[
@@ -250,6 +260,7 @@ def generate_daily_user_messages(messages):
         day_text = "\n".join([f"{msg['sender']}: {msg['message']}" for msg in day_messages])
         
         try:
+            client = get_groq_client()
             response = client.chat.completions.create(
                 model=MODEL_NAME,
                 messages=[
