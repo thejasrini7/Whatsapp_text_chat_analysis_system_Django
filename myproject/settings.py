@@ -147,10 +147,12 @@ LOGGING = {
 }
 
 # Render deployment configuration
+import os
+
 if 'RENDER' in os.environ:
     ALLOWED_HOSTS = [
         'whatsapp-text-chat-analysis-system.onrender.com',
-        '*.onrender.com'
+        '*.onrender.com',
     ]
 else:
-    ALLOWED_HOSTS = ['localhost', '127.0.0.1']
+    ALLOWED_HOSTS = ['127.0.0.1', 'localhost']
