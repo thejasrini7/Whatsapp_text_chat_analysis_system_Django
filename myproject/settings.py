@@ -149,7 +149,7 @@ LOGGING = {
 # Render deployment configuration
 if 'RENDER' in os.environ:
     ALLOWED_HOSTS = [
-        'whatsapp-text-analysis-system.onrender.com',
+        'whatsapp-text-chat-analysis-system.onrender.com',
         '*.onrender.com'
     ]
 else:
