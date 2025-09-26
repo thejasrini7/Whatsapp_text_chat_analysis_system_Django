@@ -3175,141 +3175,7 @@
       </div>
 
       <!-- Sentiment Section -->
-      <div class="section-content" id="sentiment-section">
-        <div class="sentiment-dashboard">
-          <!-- Header -->
-          <div class="sentiment-header">
-            <h2 class="sentiment-title">
-              <i class="fas fa-heart sentiment-icon"></i>
-              Sentiment Analysis
-              <div class="tooltip">
-                <span class="tooltip-icon">!</span>
-                <div class="tooltip-content">
-                  <h4>Sentiment Analysis</h4>
-                  <p>Discovers emotional patterns and sentiment trends in your conversations.</p>
-                  <p><strong>How it works:</strong></p>
-                  <ul>
-                    <li>Analyzes message sentiment (positive, negative, neutral)</li>
-                    <li>Shows sentiment distribution over time</li>
-                    <li>Identifies emotional patterns and trends</li>
-                  </ul>
-                  <p><strong>Input:</strong> Select date range and click "Analyze Sentiment"</p>
-                </div>
-              </div>
-            </h2>
-            <div class="sentiment-divider"></div>
-          </div>
-
-          <!-- Controls -->
-          <div class="sentiment-controls">
-            <div class="date-controls-row">
-              <div class="date-input-group">
-                <label class="date-label">Start Date</label>
-                <input type="date" class="sentiment-date-input" id="sentimentStartDate">
-                {% if chat_start_date %}<div style="font-size: 0.9em; color: #666; margin-top: 5px;">Starts from {{ chat_start_date }}</div>{% endif %}
-              </div>
-              <div class="date-input-group">
-                <label class="date-label">End Date</label>
-                <input type="date" class="sentiment-date-input" id="sentimentEndDate">
-                {% if chat_end_date %}<div style="font-size: 0.9em; color: #666; margin-top: 5px;">To {{ chat_end_date }}</div>{% endif %}
-              </div>
-            </div>
-            <button class="sentiment-analyze-btn" id="analyzeSentiment">
-              <i class="fas fa-brain"></i>
-              Analyze Sentiment
-            </button>
-          </div>
-
-          <!-- Overall Sentiment Cards -->
-          <div class="sentiment-overview" id="sentimentOverview" style="display: none;">
-            <div class="sentiment-card positive-card" onclick="showSentimentDetails('positive')" style="cursor: pointer;">
-              <div class="sentiment-number" id="positiveCount">0</div>
-              <div class="sentiment-label">Positive</div>
-              <div style="font-size: 0.8em; margin-top: 5px; opacity: 0.8;">Click to view messages</div>
-            </div>
-            <div class="sentiment-card neutral-card" onclick="showSentimentDetails('neutral')" style="cursor: pointer;">
-              <div class="sentiment-number" id="neutralCount">0</div>
-              <div class="sentiment-label">Neutral</div>
-              <div style="font-size: 0.8em; margin-top: 5px; opacity: 0.8;">Click to view messages</div>
-            </div>
-            <div class="sentiment-card negative-card" onclick="showSentimentDetails('negative')" style="cursor: pointer;">
-              <div class="sentiment-number" id="negativeCount">0</div>
-              <div class="sentiment-label">Negative</div>
-              <div style="font-size: 0.8em; margin-top: 5px; opacity: 0.8;">Click to view messages</div>
-            </div>
-          </div>
-
-          <!-- Charts Container -->
-          <div class="sentiment-charts" id="sentimentCharts" style="display: none;">
-            <!-- Daily Sentiment Chart -->
-            <div class="chart-container">
-              <h3 class="chart-title">Daily Sentiment Trends</h3>
-              <div class="chart-area" id="dailySentimentChart">
-                <canvas id="dailyChart" width="800" height="300"></canvas>
-              </div>
-            </div>
-
-            <!-- User Sentiment Chart -->
-            <div class="chart-container">
-              <h3 class="chart-title">Sentiment by User</h3>
-              <div class="chart-area" id="userSentimentChart">
-                <canvas id="userChart" width="800" height="400"></canvas>
-              </div>
-            </div>
-            
-            <!-- Gemini Enhanced Charts -->
-            <div class="chart-container">
-              <h3 class="chart-title"><i class="fas fa-palette"></i> Emotion Analysis</h3>
-              <div class="chart-area" id="emotionSentimentChart">
-                <canvas id="emotionChart" width="600" height="300"></canvas>
-              </div>
-            </div>
-            
-            <div class="chart-container">
-              <h3 class="chart-title"><i class="fas fa-chart-line"></i> Analysis Confidence</h3>
-              <div class="chart-area" id="confidenceSentimentChart">
-                <canvas id="confidenceChart" width="600" height="300"></canvas>
-              </div>
-              <div class="confidence-legend">
-                <span class="legend-item"><span class="legend-color high"></span>High (≥80%)</span>
-                <span class="legend-item"><span class="legend-color medium"></span>Medium (60-79%)</span>
-                <span class="legend-item"><span class="legend-color low"></span>Low (<60%)</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Loading State -->
-          <div class="sentiment-loading" id="sentimentLoading" style="display: none;">
-            <div class="loading">
-              <div class="spinner"></div>
-              <p>Analyzing sentiment patterns...</p>
-            </div>
-          </div>
-
-          <!-- Empty State -->
-          <div class="sentiment-empty" id="sentimentEmpty">
-            <i class="fas fa-heart-broken"></i>
-            <h3>Ready to Analyze</h3>
-            <p>Select a date range and click "Analyze Sentiment" to discover emotional patterns in your conversations.</p>
-          </div>
-        </div>
-
-        <!-- Negative Messages Modal -->
-        <div class="modal-overlay" id="negativeModal" style="display: none;">
-          <div class="modal-content">
-            <div class="modal-header">
-              <h3 class="modal-title">
-                <i class="fas fa-frown"></i>
-                Negative Messages
-              </h3>
-              <button class="modal-close" onclick="closeNegativeModal()">&times;</button>
-            </div>
-            <div class="modal-body" id="negativeMessagesList">
-              <!-- Messages will be populated here -->
-            </div>
-          </div>
-        </div>
-
+      
         <!-- Q&A Help Modal -->
         <div class="modal-overlay" id="qaModal" style="display: none;">
           <div class="modal-content large-modal">
@@ -3708,7 +3574,7 @@
       // Global state
       let currentGroup = '';
       let analysisHistory = JSON.parse(localStorage.getItem('analysisHistory') || '[]');
-      
+      let sentimentData = null;
       let activityData = null;
       let dailyChart = null;
       let userChart = null;
@@ -3719,6 +3585,7 @@
         summary: { title: 'Generate Summary', subtitle: 'Create comprehensive summaries of your chat conversations' },
         questions: { title: 'Ask Questions', subtitle: 'Get AI-powered insights from your chat data' },
         events: { title: 'Group Events Analysis', subtitle: 'Track member changes and group activities' },
+        sentiment: { title: 'Sentiment Analysis', subtitle: 'Discover emotional patterns in conversations' },
         activity: { title: 'Activity Analysis', subtitle: 'View engagement patterns and peak times' },
         topics: { title: 'Topic Analysis', subtitle: 'Identify main discussion topics and themes' },
         history: { title: 'Analysis History', subtitle: 'Review your previous analyses and results' }

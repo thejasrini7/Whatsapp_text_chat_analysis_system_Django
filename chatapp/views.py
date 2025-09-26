@@ -2,6 +2,8 @@ import os
 import re
 import json
 import csv
+import os
+import requests
 from datetime import datetime, timedelta
 from django.shortcuts import render, redirect
 from django.http import JsonResponse, HttpResponse
@@ -11,7 +13,7 @@ from django.conf import settings
 from django.core.files.storage import default_storage
 from dotenv import load_dotenv
 from .models import ChatFile
-from .config import GROQ_API_KEY, MAX_CHARS_FOR_ANALYSIS
+from .config import GEMINI_API_KEY, MAX_CHARS_FOR_ANALYSIS
 from .utils import parse_timestamp, filter_messages_by_date
 from .business_metrics import calculate_business_metrics
 from .group_event import (
@@ -38,10 +40,238 @@ from .summary_generator import (
     generate_daily_user_messages,
     generate_user_wise_detailed_report
 )
-from groq import Groq
 
 load_dotenv()
-client = Groq(api_key=GROQ_API_KEY)
+
+# Use Google Gemini API
+MODEL_NAME = "gemini-1.5-pro"
+GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL_NAME}/generateContent"
+
+def generate_fallback_answer(question, messages):
+    """Generate a comprehensive fallback answer when AI is unavailable"""
+    if not messages:
+        return "I don't have any messages to analyze for this date range."
+    
+    question_lower = question.lower()
+    
+    # Analyze basic statistics
+    total_messages = len(messages)
+    users = set(msg['sender'] for msg in messages)
+    user_count = len(users)
+    
+    # User activity analysis
+    user_msg_count = {}
+    for msg in messages:
+        user = msg['sender']
+        user_msg_count[user] = user_msg_count.get(user, 0) + 1
+    
+    most_active_user = max(user_msg_count.items(), key=lambda x: x[1]) if user_msg_count else None
+    
+    # Extract meaningful content and filter system messages
+    meaningful_messages = []
+    meeting_messages = []
+    file_messages = []
+    topic_messages = []
+    
+    for msg in messages:
+        message_text = msg['message'].strip()
+        message_lower = message_text.lower()
+        
+        # Skip system messages
+        if any(term in message_lower for term in ['security code', 'media omitted', 'tap to learn', 'left', 'added', 'removed']):
+            continue
+            
+        # Collect meaningful messages
+        if len(message_text) > 15:
+            meaningful_messages.append(msg)
+            
+            # Look for meeting-related content
+            if any(word in message_lower for word in ['meet', 'meeting', 'मिटिंग', 'मीटिंग', 'दौरा', 'आयोजन', 'उपस्थित']):
+                meeting_messages.append(msg)
+                
+            # Look for file/document sharing
+            if any(ext in message_lower for ext in ['.pdf', '.doc', '.jpg', '.png', '.mp4', '.xlsx', '.jpeg', '.docx']):
+                file_messages.append(msg)
+                
+            # Collect other substantial content
+            if len(message_text) > 30:
+                topic_messages.append(msg)
+    
+    # Handle different types of questions
+    if any(word in question_lower for word in ['meet', 'meeting', 'मिटिंग', 'दौरा']):
+        if meeting_messages:
+            answer = "📅 **Meetings Found:**\n\n"
+            for i, msg in enumerate(meeting_messages[:5], 1):  # Show up to 5 meetings
+                # Extract date/time from message content
+                meeting_content = msg['message'][:200] + "..." if len(msg['message']) > 200 else msg['message']
+                answer += f"**{i}. Meeting on {msg['timestamp']}**\n"
+                answer += f"👤 Organized by: {msg['sender']}\n"
+                answer += f"📝 Details: {meeting_content}\n\n"
+            return answer
+        else:
+            return "No meetings found in the conversation history for the selected date range."
+    
+    elif any(word in question_lower for word in ['most active', 'who', 'active user']):
+        if most_active_user:
+            # Show top 3 users
+            sorted_users = sorted(user_msg_count.items(), key=lambda x: x[1], reverse=True)
+            answer = "👥 **Most Active Users:**\n\n"
+            for i, (user, count) in enumerate(sorted_users[:3], 1):
+                percentage = round((count/total_messages)*100, 1)
+                answer += f"**{i}. {user}**: {count} messages ({percentage}%)\n"
+            return answer
+        else:
+            return "Unable to determine user activity from the available data."
+    
+    elif any(word in question_lower for word in ['how many', 'total', 'messages', 'count']):
+        answer = f"📊 **Message Statistics:**\n\n"
+        answer += f"• **Total Messages**: {total_messages}\n"
+        answer += f"• **Total Users**: {user_count}\n"
+        answer += f"• **Date Range**: {messages[0]['timestamp']} to {messages[-1]['timestamp']}\n"
+        answer += f"• **Average per User**: {round(total_messages/user_count, 1)} messages\n"
+        return answer
+    
+    elif any(word in question_lower for word in ['file', 'document', 'pdf', 'shared']):
+        if file_messages:
+            answer = "📎 **Files/Documents Shared:**\n\n"
+            for i, msg in enumerate(file_messages[:5], 1):
+                answer += f"**{i}. {msg['timestamp']}**\n"
+                answer += f"👤 Shared by: {msg['sender']}\n"
+                answer += f"📄 File: {msg['message'][:100]}...\n\n"
+            return answer
+        else:
+            return "No files or documents were shared in the selected time period."
+    
+    elif any(word in question_lower for word in ['when', 'time', 'day', 'date']):
+        if messages:
+            # Analyze message patterns by time/day
+            from collections import defaultdict
+            day_counts = defaultdict(int)
+            hour_counts = defaultdict(int)
+            
+            for msg in messages:
+                try:
+                    # Extract day and hour information
+                    timestamp = msg['timestamp']
+                    # Simple parsing - could be enhanced
+                    if ',' in timestamp:
+                        date_part = timestamp.split(',')[0]
+                        day_counts[date_part] += 1
+                except:
+                    continue
+            
+            if day_counts:
+                most_active_day = max(day_counts.items(), key=lambda x: x[1])
+                answer = f"📅 **Activity Timeline:**\n\n"
+                answer += f"• **Most Active Day**: {most_active_day[0]} ({most_active_day[1]} messages)\n"
+                answer += f"• **Total Date Range**: {messages[0]['timestamp']} to {messages[-1]['timestamp']}\n"
+                answer += f"• **Total Days with Activity**: {len(day_counts)}\n"
+                return answer
+        
+        return f"Messages range from {messages[0]['timestamp']} to {messages[-1]['timestamp']}."
+    
+    elif any(word in question_lower for word in ['topic', 'discuss', 'about', 'content', 'summary']):
+        if topic_messages:
+            answer = "💬 **Main Discussion Topics:**\n\n"
+            # Group messages by sender to show diverse content
+            user_topics = {}
+            for msg in topic_messages[:15]:
+                user = msg['sender']
+                if user not in user_topics:
+                    user_topics[user] = []
+                if len(user_topics[user]) < 2:  # Max 2 topics per user
+                    content = msg['message'][:120] + "..." if len(msg['message']) > 120 else msg['message']
+                    user_topics[user].append({
+                        'content': content,
+                        'timestamp': msg['timestamp']
+                    })
+            
+            topic_count = 1
+            for user, topics in list(user_topics.items())[:5]:  # Show up to 5 users
+                for topic in topics:
+                    answer += f"**{topic_count}. {topic['timestamp']}**\n"
+                    answer += f"👤 {user}: {topic['content']}\n\n"
+                    topic_count += 1
+                    if topic_count > 10:  # Max 10 topics total
+                        break
+                if topic_count > 10:
+                    break
+                    
+            return answer
+        else:
+            return "The conversation appears to contain mostly brief exchanges or media sharing."
+    
+    elif any(word in question_lower for word in ['list', 'show', 'all']):
+        # General listing based on context
+        if 'meet' in question_lower or 'मिटिंग' in question_lower:
+            # Already handled above
+            return generate_fallback_answer("meetings", messages)
+        elif 'user' in question_lower:
+            answer = "👥 **All Users:**\n\n"
+            sorted_users = sorted(user_msg_count.items(), key=lambda x: x[1], reverse=True)
+            for i, (user, count) in enumerate(sorted_users, 1):
+                percentage = round((count/total_messages)*100, 1)
+                answer += f"{i}. **{user}**: {count} messages ({percentage}%)\n"
+            return answer
+        else:
+            # Show general overview
+            answer = "📋 **Chat Overview:**\n\n"
+            answer += f"• **{total_messages} messages** from **{user_count} users**\n"
+            answer += f"• **Time Period**: {messages[0]['timestamp']} to {messages[-1]['timestamp']}\n"
+            if meeting_messages:
+                answer += f"• **{len(meeting_messages)} meetings** mentioned\n"
+            if file_messages:
+                answer += f"• **{len(file_messages)} files** shared\n"
+            answer += f"• **Most Active**: {most_active_user[0]} ({most_active_user[1]} messages)\n" if most_active_user else ""
+            return answer
+    
+    else:
+        # Enhanced general answer with actual insights
+        answer = "📊 **Chat Analysis:**\n\n"
+        answer += f"• **Total Activity**: {total_messages} messages from {user_count} users\n"
+        if most_active_user:
+            answer += f"• **Most Active**: {most_active_user[0]} with {most_active_user[1]} messages\n"
+        if meeting_messages:
+            answer += f"• **Meetings Mentioned**: {len(meeting_messages)} meeting-related discussions\n"
+        if file_messages:
+            answer += f"• **Files Shared**: {len(file_messages)} documents/media shared\n"
+        answer += f"• **Time Range**: {messages[0]['timestamp']} to {messages[-1]['timestamp']}\n\n"
+        answer += "💡 **Try asking**: 'List meetings', 'Who is most active?', 'What topics were discussed?', 'Show files shared'"
+        return answer
+
+def generate_with_gemini(prompt):
+    """Generate content using Google Gemini API"""
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        raise ValueError("GEMINI_API_KEY environment variable not set")
+
+    headers = {
+        "Content-Type": "application/json"
+    }
+
+    data = {
+        "contents": [
+            {
+                "parts": [
+                    {"text": prompt}
+                ]
+            }
+        ]
+    }
+
+    try:
+        response = requests.post(GEMINI_API_URL, headers=headers, params={"key": api_key}, json=data)
+        response.raise_for_status()
+
+        result = response.json()
+        return result['candidates'][0]['content']['parts'][0]['text']
+
+    except requests.exceptions.RequestException as e:
+        raise Exception(f"Gemini API error: {str(e)}")
+    except KeyError as e:
+        raise Exception(f"Unexpected response format: {str(e)}")
+    except Exception as e:
+        raise Exception(f"Error calling Gemini API: {str(e)}")
 
 def parse_whatsapp(file_path):
     messages = []
@@ -92,18 +322,35 @@ def get_group_name_from_file(filename):
 def load_all_chats():
     chat_data = {}
     chat_files = ChatFile.objects.all()
+    print(f"Found {len(chat_files)} chat files in database")
     for chat_file in chat_files:
         file_path = chat_file.file.path
-        group_name = chat_file.group_name 
+        group_name = chat_file.group_name
+        print(f"Loading file: {chat_file.original_filename}, group: {group_name}, path: {file_path}")
         try:
             messages = parse_whatsapp(file_path)
-            chat_data[group_name] = {
-                'filename': chat_file.original_filename,
-                'file_id': chat_file.id,
-                'messages': messages
-            }
+            print(f"Parsed {len(messages)} messages from {chat_file.original_filename}")
+            if group_name not in chat_data:
+                chat_data[group_name] = {
+                    'filenames': [chat_file.original_filename],
+                    'file_ids': [chat_file.id],
+                    'messages': messages
+                }
+            else:
+                chat_data[group_name]['filenames'].append(chat_file.original_filename)
+                chat_data[group_name]['file_ids'].append(chat_file.id)
+                chat_data[group_name]['messages'].extend(messages)
         except Exception as e:
             print(f"Error loading {chat_file.original_filename}: {e}")
+            import traceback
+            traceback.print_exc()
+
+    print(f"Loaded groups: {list(chat_data.keys())}")
+    # Sort messages by timestamp for each group
+    for group_name, data in chat_data.items():
+        messages = data['messages']
+        messages.sort(key=lambda msg: parse_timestamp(msg['timestamp']) or datetime.min)
+
     return chat_data
 
 def index(request):
@@ -117,9 +364,22 @@ def home(request):
     return render(request, 'chatapp/home.html')
 
 def dashboard(request):
-    # Redirect old dashboard to the new React dashboard while preserving query params
+    # Render the old dashboard with date hints
     group = request.GET.get('group', '')
-    return redirect(f"/react-dashboard?group={group}")
+    context = {'group': group}
+    if group:
+        chat_data = load_all_chats()
+        if group in chat_data:
+            messages = chat_data[group]['messages']
+            if messages:
+                from .utils import parse_timestamp
+                dates = [parse_timestamp(msg['timestamp']) for msg in messages if parse_timestamp(msg['timestamp'])]
+                if dates:
+                    first_date = min(dates)
+                    last_date = max(dates)
+                    context['first_date'] = first_date.strftime('%d / %m / %Y')
+                    context['last_date'] = last_date.strftime('%d / %m / %Y')
+    return render(request, 'chatapp/dashboard.html', context)
 
 def react_dashboard(request):
     # React + Tailwind + Recharts powered dashboard
@@ -127,12 +387,43 @@ def react_dashboard(request):
     context = {
         'group': group
     }
+    if group:
+        chat_data = load_all_chats()
+        if group in chat_data:
+            messages = chat_data[group]['messages']
+            if messages:
+                from .utils import parse_timestamp
+                dates = [parse_timestamp(msg['timestamp']) for msg in messages if parse_timestamp(msg['timestamp'])]
+                if dates:
+                    start_date = min(dates).strftime('%d / %m / %Y')
+                    end_date = max(dates).strftime('%d / %m / %Y')
+                    context['chat_start_date'] = start_date
+                    context['chat_end_date'] = end_date
     return render(request, 'chatapp/react_dashboard.html', context)
 
 # ------------------- Group Events Dashboard (Bootstrap) -------------------
 
 def group_events_page(request):
     return render(request, 'chatapp/group_events_dashboard.html')
+
+@require_http_methods(["GET"])
+def get_group_dates(request):
+    group = request.GET.get('group', '')
+    if not group:
+        return JsonResponse({"error": "No group specified"}, status=400)
+    chat_data = load_all_chats()
+    if group not in chat_data:
+        return JsonResponse({"error": "Group not found"}, status=404)
+    messages = chat_data[group]['messages']
+    if not messages:
+        return JsonResponse({"error": "No messages"}, status=400)
+    from .utils import parse_timestamp
+    dates = [parse_timestamp(msg['timestamp']) for msg in messages if parse_timestamp(msg['timestamp'])]
+    if not dates:
+        return JsonResponse({"error": "No valid dates"}, status=400)
+    start_date = min(dates).strftime('%d / %m / %Y')
+    end_date = max(dates).strftime('%d / %m / %Y')
+    return JsonResponse({"start_date": start_date, "end_date": end_date})
 
 @csrf_exempt
 @require_http_methods(["POST"])
@@ -404,17 +695,44 @@ def ask_question(request):
         chat_text = chat_text[-MAX_CHARS_FOR_ANALYSIS:]
     
     try:
-        response = client.chat.completions.create(
-            model="deepseek-r1-distill-llama-70b",
-            messages=[
-                {"role": "system", "content": "You are a helpful assistant that answers questions based on WhatsApp chat history. Be concise and specific."},
-                {"role": "user", "content": f"Answer this question based on the following WhatsApp chat:\n\n{chat_text}\n\nQuestion: {user_question}"}
-            ]
-        )
-        answer = response.choices[0].message.content
+        # Enhanced prompt for better AI responses
+        prompt = f"""You are a WhatsApp chat analyzer. Analyze the following chat data and answer the user's question with specific, detailed information.
+
+IMPORTANT INSTRUCTIONS:
+- Provide SPECIFIC answers with dates, times, names, and actual content
+- For meeting questions: List actual meetings with dates, organizers, and details
+- For "who" questions: Provide names and statistics
+- For "what" questions: Describe actual topics discussed with examples
+- For "when" questions: Give specific dates and times
+- Use emojis and formatting for better readability
+- Extract exact information from the chat content
+
+Chat Data:
+{chat_text}
+
+User Question: {user_question}
+
+Provide a comprehensive answer with specific details from the chat:"""
+        
+        response = generate_with_gemini(prompt)
+        
+        # Handle potential API issues
+        if response == "QUOTA_EXCEEDED":
+            # Generate fallback answer based on the question and chat content
+            answer = generate_fallback_answer(user_question, filtered_messages)
+        elif response == "API_ERROR":
+            answer = "I'm experiencing technical difficulties with the AI service. Please try again in a few moments."
+        else:
+            answer = response
+            
         return JsonResponse({"answer": answer})
     except Exception as e:
-        return JsonResponse({"error": f"Error generating answer: {str(e)}"}, status=500)
+        # Generate fallback answer for any errors
+        try:
+            answer = generate_fallback_answer(user_question, filtered_messages)
+            return JsonResponse({"answer": answer})
+        except Exception as fallback_error:
+            return JsonResponse({"error": f"Unable to process your question at this time. Please try again later."}, status=500)
 
 @csrf_exempt
 @require_http_methods(["POST"])
@@ -458,6 +776,7 @@ def group_events(request):
 @csrf_exempt
 @require_http_methods(["POST"])
 def event_details(request):
+    
     try:
         data = json.loads(request.body)
     except json.JSONDecodeError:
@@ -864,6 +1183,8 @@ def get_top_removers(events):
 
 @csrf_exempt
 @require_http_methods(["POST"])
+@csrf_exempt
+@require_http_methods(["POST"])
 def sentiment(request):
     try:
         data = json.loads(request.body)
@@ -874,21 +1195,55 @@ def sentiment(request):
     start_date_str = data.get('start_date')
     end_date_str = data.get('end_date')
     
+    print(f"Sentiment analysis request: group={group_name}, start={start_date_str}, end={end_date_str}")
+    
     if not group_name:
         return JsonResponse({"error": "Invalid group name"}, status=400)
     
-    chat_data = load_all_chats()
-    if group_name not in chat_data:
-        return JsonResponse({"error": "Group not found"}, status=404)
-    
-    messages = chat_data[group_name]['messages']
-    filtered_messages = filter_messages_by_date(messages, start_date_str, end_date_str)
-    
-    if not filtered_messages:
-        return JsonResponse({"error": "No messages found in the selected date range"}, status=400)
-    
-    result = analyze_sentiment(filtered_messages)
-    return JsonResponse(result)
+    try:
+        chat_data = load_all_chats()
+        print(f"Available groups: {list(chat_data.keys())}")
+        
+        if group_name not in chat_data:
+            return JsonResponse({"error": "Group not found"}, status=404)
+        
+        messages = chat_data[group_name]['messages']
+        print(f"Total messages in group: {len(messages)}")
+        
+        # Filter messages by date range
+        filtered_messages = filter_messages_by_date(messages, start_date_str, end_date_str)
+        print(f"Filtered messages count: {len(filtered_messages)}")
+        
+        if not filtered_messages:
+            return JsonResponse({"error": "No messages found in the selected date range"}, status=400)
+        
+        # Perform sentiment analysis
+        print(f"About to call analyze_sentiment with {len(filtered_messages)} messages")
+        result = analyze_sentiment(filtered_messages)
+        print(f"Sentiment analysis completed. Result type: {type(result)}")
+        print(f"Result keys: {list(result.keys()) if isinstance(result, dict) else 'Not a dict'}")
+        
+        if isinstance(result, dict):
+            print(f"Sentiment breakdown: {result.get('sentiment_breakdown')}")
+            print(f"Overall sentiment: {result.get('overall_sentiment')}")
+        else:
+            print(f"Unexpected result type: {result}")
+        
+        # Ensure we have the expected format for frontend
+        if 'sentiment_breakdown' not in result:
+            result['sentiment_breakdown'] = result.get('overall_sentiment', {'positive': 0, 'neutral': 0, 'negative': 0})
+        
+        # Add total count for frontend display
+        total_count = sum(result['sentiment_breakdown'].values())
+        result['total_analyzed'] = total_count
+        
+        return JsonResponse(result)
+        
+    except Exception as e:
+        print(f"Error in sentiment analysis: {e}")
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({"error": f"Internal server error: {str(e)}"}, status=500)
 
 @csrf_exempt
 @require_http_methods(["POST"])
@@ -972,12 +1327,12 @@ def activity_analysis(request):
         return JsonResponse({"error": "Failed to calculate metrics"}, status=500)
 
     # Transform to frontend-expected shape
-    # Hourly: ensure 0-23 keys
-    hourly_activity = {h: int(raw_metrics.get('activity_by_hour', {}).get(h, 0)) for h in range(24)}
+    # Hourly: array 0..23 aligned with labels
+    hourly_activity = [int(raw_metrics.get('activity_by_hour', {}).get(h, 0)) for h in range(24)]
 
-    # Daily: map names to 0..6 (Sun..Sat)
+    # Daily: array 0..6 (Sun..Sat) aligned with labels
     day_index = {'Sunday': 0, 'Monday': 1, 'Tuesday': 2, 'Wednesday': 3, 'Thursday': 4, 'Friday': 5, 'Saturday': 6}
-    daily_activity = {i: 0 for i in range(7)}
+    daily_activity = [0 for _ in range(7)]
     for day_name, cnt in raw_metrics.get('activity_by_day', {}).items():
         idx = day_index.get(day_name)
         if idx is not None:
@@ -1207,3 +1562,37 @@ def export_data(request):
     
     else:
         return JsonResponse({"error": "Unsupported export format"}, status=400)
+
+@csrf_exempt
+@require_http_methods(["GET", "POST"])
+def debug_groups(request):
+    """Debug endpoint to list available groups and basic info"""
+    try:
+        chat_data = load_all_chats()
+        groups_info = {}
+        
+        for group_name, group_data in chat_data.items():
+            messages = group_data.get('messages', [])
+            groups_info[group_name] = {
+                'total_messages': len(messages),
+                'first_message_date': None,
+                'last_message_date': None
+            }
+            
+            # Find date range
+            dates = [parse_timestamp(msg['timestamp']) for msg in messages if parse_timestamp(msg['timestamp'])]
+            if dates:
+                groups_info[group_name]['first_message_date'] = min(dates).strftime('%Y-%m-%d')
+                groups_info[group_name]['last_message_date'] = max(dates).strftime('%Y-%m-%d')
+        
+        return JsonResponse({
+            'available_groups': list(chat_data.keys()),
+            'groups_info': groups_info,
+            'total_groups': len(chat_data)
+        })
+        
+    except Exception as e:
+        print(f"Error in debug_groups: {e}")
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({"error": f"Internal server error: {str(e)}"}, status=500)

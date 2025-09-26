@@ -12,7 +12,6 @@
         <li><a href="#" data-section="summary" class="active"><i class="fa-solid fa-bolt"></i><span class="sidebar__label">Generate Summary</span></a></li>
         <li><a href="#" data-section="ask"><i class="fa-solid fa-circle-question"></i><span class="sidebar__label">Ask Questions</span></a></li>
         <li><a href="#" data-section="events"><i class="fa-solid fa-people-arrows"></i><span class="sidebar__label">Group Events Analysis</span></a></li>
-        <li><a href="#" data-section="sentiment"><i class="fa-solid fa-face-smile"></i><span class="sidebar__label">Sentiment Analysis</span></a></li>
         <li><a href="#" data-section="activity"><i class="fa-solid fa-chart-line"></i><span class="sidebar__label">Activity Analysis</span></a></li>
         <li><a href="#" data-section="history"><i class="fa-solid fa-clock-rotate-left"></i><span class="sidebar__label">History</span></a></li>
       </ul>
@@ -36,8 +35,16 @@
         </style>
         <h2>Generate Summary</h2>
         <div class="date-range">
-          <div><label>Start</label><input type="date" id="sumStart"></div>
-          <div><label>End</label><input type="date" id="sumEnd"></div>
+          <div>
+            <label>Start</label>
+            <input type="date" id="sumStart">
+            {% if first_date %}<div style="font-size: 0.9em; color: #666; margin-top: 5px;">Starts from {{ first_date }}</div>{% endif %}
+          </div>
+          <div>
+            <label>End</label>
+            <input type="date" id="sumEnd">
+            {% if last_date %}<div style="font-size: 0.9em; color: #666; margin-top: 5px;">To {{ last_date }}</div>{% endif %}
+          </div>
         </div>
         <div class="actions">
           <button id="totalSummaryBtn" data-type="auto" class="sum-btn">Total Summary</button>
@@ -58,8 +65,16 @@
       <div id="section-ask" class="card hidden">
         <h2>Ask Questions</h2>
         <div class="date-range">
-          <div><label>Start</label><input type="date" id="askStart"></div>
-          <div><label>End</label><input type="date" id="askEnd"></div>
+          <div>
+            <label>Start</label>
+            <input type="date" id="askStart">
+            {% if first_date %}<div style="font-size: 0.9em; color: #666; margin-top: 5px;">Starts from {{ first_date }}</div>{% endif %}
+          </div>
+          <div>
+            <label>End</label>
+            <input type="date" id="askEnd">
+            {% if last_date %}<div style="font-size: 0.9em; color: #666; margin-top: 5px;">To {{ last_date }}</div>{% endif %}
+          </div>
         </div>
         <textarea id="askText" rows="3" placeholder="Ask anything about this chat..."></textarea>
         <div class="actions"><button id="askBtn">Ask</button></div>
@@ -69,8 +84,16 @@
       <div id="section-events" class="card hidden">
         <h2>Group Events Analysis</h2>
         <div class="date-range">
-          <div><label>Start</label><input type="date" id="evStart"></div>
-          <div><label>End</label><input type="date" id="evEnd"></div>
+          <div>
+            <label>Start</label>
+            <input type="date" id="evStart">
+            {% if first_date %}<div style="font-size: 0.9em; color: #666; margin-top: 5px;">Starts from {{ first_date }}</div>{% endif %}
+          </div>
+          <div>
+            <label>End</label>
+            <input type="date" id="evEnd">
+            {% if last_date %}<div style="font-size: 0.9em; color: #666; margin-top: 5px;">To {{ last_date }}</div>{% endif %}
+          </div>
         </div>
         <div class="actions"><button id="evBtn">Analyze Events</button></div>
         <div class="result" id="evResult">Select date range and click Analyze Events</div>
@@ -79,8 +102,16 @@
       <div id="section-sentiment" class="card hidden">
         <h2>Sentiment Analysis</h2>
         <div class="date-range">
-          <div><label>Start</label><input type="date" id="senStart"></div>
-          <div><label>End</label><input type="date" id="senEnd"></div>
+          <div>
+            <label>Start</label>
+            <input type="date" id="senStart">
+            {% if first_date %}<div style="font-size: 0.9em; color: #666; margin-top: 5px;">Starts from {{ first_date }}</div>{% endif %}
+          </div>
+          <div>
+            <label>End</label>
+            <input type="date" id="senEnd">
+            {% if last_date %}<div style="font-size: 0.9em; color: #666; margin-top: 5px;">To {{ last_date }}</div>{% endif %}
+          </div>
         </div>
         <div class="actions"><button id="senBtn">Analyze Sentiment</button></div>
         <div class="result" id="senResult">Select date range and click Analyze Sentiment</div>
@@ -89,11 +120,30 @@
       <div id="section-activity" class="card hidden">
         <h2>Activity Analysis</h2>
         <div class="date-range">
-          <div><label>Specific Date (Hourly)</label><input type="date" id="actDate"></div>
-          <div><label>Weekly Start</label><input type="date" id="actWeekStart"></div>
-          <div><label>Weekly End</label><input type="date" id="actWeekEnd"></div>
-          <div><label>Start Date</label><input type="date" id="actStart"></div>
-          <div><label>End Date</label><input type="date" id="actEnd"></div>
+          <div>
+            <label>Specific Date (Hourly)</label>
+            <input type="date" id="actDate">
+          </div>
+          <div>
+            <label>Weekly Start</label>
+            <input type="date" id="actWeekStart">
+            {% if first_date %}<div style="font-size: 0.9em; color: #666; margin-top: 5px;">Starts from {{ first_date }}</div>{% endif %}
+          </div>
+          <div>
+            <label>Weekly End</label>
+            <input type="date" id="actWeekEnd">
+            {% if last_date %}<div style="font-size: 0.9em; color: #666; margin-top: 5px;">To {{ last_date }}</div>{% endif %}
+          </div>
+          <div>
+            <label>Start Date</label>
+            <input type="date" id="actStart">
+            {% if first_date %}<div style="font-size: 0.9em; color: #666; margin-top: 5px;">Starts from {{ first_date }}</div>{% endif %}
+          </div>
+          <div>
+            <label>End Date</label>
+            <input type="date" id="actEnd">
+            {% if last_date %}<div style="font-size: 0.9em; color: #666; margin-top: 5px;">To {{ last_date }}</div>{% endif %}
+          </div>
         </div>
         <div class="actions"><button id="actBtn">Analyze Activity</button></div>
         <div class="result" id="actResult">Select date range and click Analyze Activity</div>
@@ -305,10 +355,14 @@ document.addEventListener('DOMContentLoaded', function(){
           let output = '<div class="weekly-summary">';
           if(data.weekly_summaries && data.weekly_summaries.length > 0) {
             data.weekly_summaries.forEach((week, index) => {
+              // Debug log to see what we're getting
+              console.log('Week data:', week);
+              console.log('Summary content:', week.summary);
+              
               output += `
                 <div class="weekly-summary-item">
                   <h3>Week ${index+1} (${week.date_range})</h3>
-                  <p>${week.summary}</p>
+                  <div class="weekly-summary-content">${week.summary || 'No summary content available'}</div>
                 </div>
               `;
             });
@@ -451,11 +505,16 @@ document.addEventListener('DOMContentLoaded', function(){
       let output = '<div class="events-analysis">';
       
       if (data.event_counts) {
-        output += '<h3>Event Counts</h3><ul>';
+        output += '<h3>Event Counts</h3><div class="event-cards">';
         for (const [event, count] of Object.entries(data.event_counts)) {
-          output += `<li>${event}: ${count}</li>`;
+          output += `
+            <div class="event-card" data-event-type="${event}">
+              <div class="event-title">${event}</div>
+              <div class="event-count">${count}</div>
+            </div>
+          `;
         }
-        output += '</ul>';
+        output += '</div>';
       }
       
       if (data.top_removers && data.top_removers.length > 0) {
@@ -466,8 +525,43 @@ document.addEventListener('DOMContentLoaded', function(){
         output += '</ol>';
       }
       
+      output += '<div id="event-details-container"></div>'; // Container for event details
       output += '</div>';
       evResult.innerHTML = output;
+      
+      // Add event listeners to event cards
+      document.querySelectorAll('.event-card').forEach(card => {
+        card.addEventListener('click', async () => {
+          const eventType = card.getAttribute('data-event-type');
+          const detailsContainer = document.getElementById('event-details-container');
+          detailsContainer.innerHTML = '<div class="loading"><div class="spinner"></div>Loading event details...</div>';
+          
+          try {
+            const detailsData = await postJson('/event_details/', {
+              group_name: group,
+              event_type: eventType,
+              start_date: evStart.value || null,
+              end_date: evEnd.value || null
+            });
+            
+            let detailsOutput = `<h3>Details for ${eventType}</h3>`;
+            if (detailsData.events && detailsData.events.length > 0) {
+              detailsOutput += '<ul>';
+              detailsData.events.forEach(event => {
+                detailsOutput += `<li>${event.timestamp} - ${event.details}</li>`;
+              });
+              detailsOutput += '</ul>';
+            } else {
+              detailsOutput += '<p>No details found for this event type.</p>';
+            }
+            
+            detailsContainer.innerHTML = detailsOutput;
+          } catch (error) {
+            console.error('Error loading event details:', error);
+            detailsContainer.innerHTML = `<div class="error">Error loading event details: ${error.message}</div>`;
+          }
+        });
+      });
       
       addHistory({ type: 'Group Events' });
     } catch (error) {
@@ -476,52 +570,7 @@ document.addEventListener('DOMContentLoaded', function(){
     }
   });
 
-  // Sentiment
-  const senBtn = document.getElementById('senBtn');
-  const senStart = document.getElementById('senStart');
-  const senEnd = document.getElementById('senEnd');
-  const senResult = document.getElementById('senResult');
   
-  senBtn.addEventListener('click', async ()=>{
-    if (!group) {
-      senResult.innerHTML = '<div class="error">No group selected. Please select a group first.</div>';
-      return;
-    }
-    
-    senResult.innerHTML = '<div class="loading"><div class="spinner"></div>Processing...</div>';
-    
-    try {
-      const data = await postJson('/sentiment/', { 
-        group_name: group, 
-        start_date: senStart.value || null, 
-        end_date: senEnd.value || null 
-      });
-      
-      let output = '<div class="sentiment-analysis">';
-      
-      if (data.sentiment_breakdown) {
-        output += '<h3>Sentiment Breakdown</h3><ul>';
-        for (const [sentiment, count] of Object.entries(data.sentiment_breakdown)) {
-          output += `<li>${sentiment}: ${count}</li>`;
-        }
-        output += '</ul>';
-      }
-      
-      if (data.daily_sentiment) {
-        output += '<h3>Daily Sentiment Trends</h3>';
-        output += '<div class="chart-placeholder">Chart would be displayed here</div>';
-      }
-      
-      output += '</div>';
-      senResult.innerHTML = output;
-      
-      addHistory({ type: 'Sentiment' });
-    } catch (error) {
-      console.error('Error analyzing sentiment:', error);
-      senResult.innerHTML = `<div class="error">Error analyzing sentiment: ${error.message}</div>`;
-    }
-  });
-
   // Activity
   const actBtn = document.getElementById('actBtn');
   const actDate = document.getElementById('actDate');
@@ -721,6 +770,50 @@ document.addEventListener('DOMContentLoaded', function(){
   text-align: center;
   padding: 20px;
   color: var(--text-muted);
+}
+
+/* Event cards styling */
+.event-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.event-card {
+  background-color: var(--bg-light);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 15px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+  min-width: 120px;
+  text-align: center;
+}
+
+.event-card:hover {
+  background-color: var(--primary-light);
+}
+
+.event-title {
+  font-weight: bold;
+  margin-bottom: 5px;
+}
+
+.event-count {
+  font-size: 1.5em;
+  color: var(--primary);
+}
+
+/* Week cards styling */
+.week-card {
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.week-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
 }
 </style>
 {% endblock %}

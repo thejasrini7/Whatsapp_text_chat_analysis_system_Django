@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Sentiment Analysis</title>
+    <script>
+        async function testSentiment() {
+            const result = document.getElementById('result');
+            result.innerHTML = 'Testing...';
+            
+            try {
+                // Test data - adjust these values based on your actual data
+                const testData = {
+                    group_name: document.getElementById('groupName').value,
+                    start_date: document.getElementById('startDate').value,
+                    end_date: document.getElementById('endDate').value
+                };
+                
+                console.log('Sending request with data:', testData);
+                
+                const response = await fetch('/sentiment/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(testData)
+                });
+                
+                console.log('Response status:', response.status);
+                const responseText = await response.text();
+                console.log('Response text:', responseText);
+                
+                if (!response.ok) {
+                    result.innerHTML = `Error: ${response.status} - ${responseText}`;
+                    return;
+                }
+                
+                const data = JSON.parse(responseText);
+                console.log('Parsed data:', data);
+                
+                result.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+                
+            } catch (error) {
+                console.error('Error:', error);
+                result.innerHTML = `Error: ${error.message}`;
+            }
+        }
+        
+        async function listGroups() {
+            const result = document.getElementById('groupsList');
+            result.innerHTML = 'Loading groups...';
+            
+            try {
+                const response = await fetch('/debug_groups/');
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                console.log('Groups data:', data);
+                
+                if (data.available_groups && data.available_groups.length > 0) {
+                    let output = `<h4>Found ${data.total_groups} groups:</h4><ul>`;
+                    data.available_groups.forEach(group => {
+                        const info = data.groups_info[group] || {};
+                        output += `<li><strong>${group}</strong> - ${info.total_messages || 0} messages`;
+                        if (info.first_message_date && info.last_message_date) {
+                            output += ` (${info.first_message_date} to ${info.last_message_date})`;
+                        }
+                        output += `</li>`;
+                    });
+                    output += '</ul>';
+                    result.innerHTML = output;
+                } else {
+                    result.innerHTML = 'No groups found';
+                }
+                
+            } catch (error) {
+                console.error('Error loading groups:', error);
+                result.innerHTML = `Error loading groups: ${error.message}`;
+            }
+        }
+        
+        window.onload = function() {
+            // Set default dates
+            const today = new Date();
+            const thirtyDaysAgo = new Date(today);
+            thirtyDaysAgo.setDate(today.getDate() - 30);
+            
+            document.getElementById('startDate').value = thirtyDaysAgo.toISOString().split('T')[0];
+            document.getElementById('endDate').value = today.toISOString().split('T')[0];
+            
+            listGroups();
+        };
+    </script>
+</head>
+<body>
+    <h1>Sentiment Analysis Debug Tool</h1>
+    
+    <h2>Available Groups</h2>
+    <div id="groupsList">Loading...</div>
+    
+    <h2>Test Sentiment Analysis</h2>
+    <div>
+        <label>Group Name: </label>
+        <input type="text" id="groupName" placeholder="Enter exact group name" style="width: 300px;">
+    </div>
+    <br>
+    <div>
+        <label>Start Date: </label>
+        <input type="date" id="startDate">
+    </div>
+    <br>
+    <div>
+        <label>End Date: </label>
+        <input type="date" id="endDate">
+    </div>
+    <br>
+    <button onclick="testSentiment()" style="padding: 10px 20px; background: #007bff; color: white; border: none; cursor: pointer;">Test Sentiment Analysis</button>
+    
+    <h2>Result</h2>
+    <div id="result" style="background: #f5f5f5; padding: 10px; margin: 10px 0; min-height: 100px; white-space: pre-wrap;"></div>
+    
+    <h2>Instructions</h2>
+    <ol>
+        <li>Go to the main dashboard first to see available groups</li>
+        <li>Enter the exact group name here</li>
+        <li>Adjust date range if needed</li>
+        <li>Click "Test Sentiment Analysis"</li>
+        <li>Check browser console (F12) for detailed logs</li>
+    </ol>
+</body>
+</html>

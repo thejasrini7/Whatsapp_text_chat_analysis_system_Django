@@ -31,6 +31,18 @@
       <a class="btn btn-outline-secondary" href="/home"><i class="fa fa-arrow-left me-2"></i>Back</a>
     </div>
 
+    <div id="dateBar" style="display: none; background: #fff; border: 1px solid #ddd; padding: 8px; text-align: center; margin-bottom: 16px; font-weight: 500; font-size: 14px;">
+      Using chat data from <strong id="startDateText"></strong> to <strong id="endDateText"></strong>
+    </div>
+    <style>
+      @media (max-width: 768px) {
+        #dateBar {
+          font-size: 12px;
+          padding: 6px;
+        }
+      }
+    </style>
+
     <!-- Input Section -->
     <div class="form-section mb-4">
       <div class="row g-3 align-items-end">
@@ -41,10 +53,12 @@
         <div class="col-md-2">
           <label class="form-label">Start Date</label>
           <input id="startDate" type="date" class="form-control">
+          <div id="startDateHint" style="font-size: 0.9em; color: #666; margin-top: 5px; display: none;"></div>
         </div>
         <div class="col-md-2">
           <label class="form-label">End Date</label>
           <input id="endDate" type="date" class="form-control">
+          <div id="endDateHint" style="font-size: 0.9em; color: #666; margin-top: 5px; display: none;"></div>
         </div>
         <div class="col-md-3">
           <label class="form-label">Event Types</label>
@@ -333,7 +347,44 @@
           const opt = document.createElement('option');
           opt.value = g; opt.textContent = g; sel.appendChild(opt);
         });
+        // Load dates for first group if available
+        if (data.groups && data.groups.length > 0) {
+          updateDateBar(data.groups[0]);
+        }
       } catch (e) { console.error(e); }
+    }
+
+    async function updateDateBar(group) {
+      if (!group) {
+        $('#dateBar').style.display = 'none';
+        $('#startDateHint').style.display = 'none';
+        $('#endDateHint').style.display = 'none';
+        return;
+      }
+      try {
+        const res = await fetch(`/api/group_dates/?group=${encodeURIComponent(group)}`);
+        const data = await res.json();
+        if (data.start_date && data.end_date) {
+          $('#startDateText').textContent = data.start_date;
+          $('#endDateText').textContent = data.end_date;
+          $('#dateBar').style.display = 'block';
+          
+          // Show date hints below input fields
+          $('#startDateHint').textContent = `Starts from ${data.start_date}`;
+          $('#endDateHint').textContent = `To ${data.end_date}`;
+          $('#startDateHint').style.display = 'block';
+          $('#endDateHint').style.display = 'block';
+        } else {
+          $('#dateBar').style.display = 'none';
+          $('#startDateHint').style.display = 'none';
+          $('#endDateHint').style.display = 'none';
+        }
+      } catch (e) {
+        console.error(e);
+        $('#dateBar').style.display = 'none';
+        $('#startDateHint').style.display = 'none';
+        $('#endDateHint').style.display = 'none';
+      }
     }
 
     // Init
@@ -348,6 +399,7 @@
       $('#endDate').value = fmt(end);
 
       $('#analyzeBtn').addEventListener('click', analyze);
+      $('#groupSelect').addEventListener('change', () => updateDateBar($('#groupSelect').value));
     });
   </script>
 </body>

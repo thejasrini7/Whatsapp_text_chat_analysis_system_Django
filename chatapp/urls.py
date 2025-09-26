@@ -11,6 +11,7 @@ urlpatterns = [
     path('group-events', views.group_events_page, name='group_events_page'),
     path('api/group_events/analytics/', views.group_events_analytics, name='group_events_analytics'),
     path('api/group_events/logs/', views.group_events_logs, name='group_events_logs'),
+    path('api/group_dates/', views.get_group_dates, name='get_group_dates'),
 
     path('groups/', views.get_groups, name='get_groups'),
     path('upload/', views.upload_file, name='upload_file'),
@@ -23,6 +24,7 @@ urlpatterns = [
     path('sentiment/', views.sentiment, name='sentiment'),
     path('activity_analysis/', views.activity_analysis, name='activity_analysis'),
     path('export_data/', views.export_data, name='export_data'),
+    path('debug_groups/', views.debug_groups, name='debug_groups'),
     
     
 ]

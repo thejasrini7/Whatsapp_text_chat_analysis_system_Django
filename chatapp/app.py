@@ -1,13 +1,16 @@
 import os
 import re
+import google.generativeai as genai
 from datetime import datetime
 from django.shortcuts import render
 from django.http import JsonResponse     #render the page and return in json formate
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 import json
-from groq import Groq
 from dotenv import load_dotenv
+import os
+from django.conf import settings
+import logging
 from .business_metrics import calculate_business_metrics
 from .group_event import analyze_group_events, get_event_counts, get_event_details, get_top_removers
 from .sentiment_analyzer import analyze_sentiment
@@ -18,16 +21,38 @@ from .summary_generator import (
     generate_user_messages_for_user,
     generate_weekly_summary
 )
+from .topic_analyzer import extract_topics
 
 load_dotenv()
 
+# Configure logging
+logger = logging.getLogger(__name__)
+
+# Configure Gemini AI
+genai.configure(api_key=os.getenv("GEMINI_API_KEY") or settings.GEMINI_API_KEY)
+
+# Initialize the model with fallback
+try:
+    model = genai.GenerativeModel('gemini-1.5-pro')
+except Exception as e:
+    logger.warning(f"Could not initialize gemini-1.5-pro, falling back to gemini-1.5-pro: {e}")
+    model = genai.GenerativeModel('gemini-1.5-pro')
+
+def generate_with_gemini(prompt):
+    """Generate content using Google Gemini AI SDK"""
+    try:
+        response = model.generate_content(prompt)
+        return response.text
+    except Exception as e:
+        logger.error(f"Gemini API error: {e}")
+        # Check if it's a quota exceeded error
+        if "429" in str(e) or "quota" in str(e).lower():
+            return "Content unavailable due to API quota limits. Please try again later."
+        return "Content unavailable due to technical issues. Please try again later."
+
 chat_data = {}
 
-CHATS_FOLDER = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'chats')
-
-MODEL_NAME = "deepseek-r1-distill-llama-70b"
-
-client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+CHATS_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'media', 'chat_files')
 
 def parse_timestamp(timestamp_str):
     timestamp_str = timestamp_str.replace('\u202F', ' ')
@@ -231,15 +256,9 @@ def ask_question(request):
         chat_text = chat_text[-max_chars:]
     
     try:
-        response = client.chat.completions.create(
-            model=MODEL_NAME,
-            messages=[
-                {"role": "system", "content": "Answer questions based on this WhatsApp chat. Be concise and specific."},
-                {"role": "user", "content": chat_text},
-                {"role": "user", "content": f"Question: {user_question}"}
-            ]
-        )
-        answer = response.choices[0].message.content
+        prompt = "Answer questions based on this WhatsApp chat. Be concise and specific.\n\n" + chat_text + f"\n\nQuestion: {user_question}"
+        response = generate_with_gemini(prompt)
+        answer = response
         return JsonResponse({"answer": answer})
     except Exception as e:
         return JsonResponse({"error": f"Error generating answer: {str(e)}"}, status=500)

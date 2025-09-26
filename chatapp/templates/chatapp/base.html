@@ -68,6 +68,23 @@
     .brand-logo { display: inline-flex; gap: 10px; align-items: center; font-weight: 700; }
     .brand-logo i { color: var(--brand); }
 
+    .date-bar {
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+      padding: 8px 16px;
+      text-align: center;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text);
+    }
+    .date-bar strong { font-weight: 600; }
+    @media (max-width: 768px) {
+      .date-bar {
+        font-size: 12px;
+        padding: 6px 12px;
+      }
+    }
+
     .hidden { display: none !important; }
   </style>
   {% block head %}{% endblock %}
@@ -84,6 +101,14 @@
       </div>
     </div>
   </header>
+
+  {% if chat_start_date and chat_end_date %}
+  <div class="date-bar">
+    <div class="date-bar__inner">
+      <span>Using chat data from <strong>{{ chat_start_date }}</strong> to <strong>{{ chat_end_date }}</strong></span>
+    </div>
+  </div>
+  {% endif %}
 
   {% block body %}{% endblock %}
 
