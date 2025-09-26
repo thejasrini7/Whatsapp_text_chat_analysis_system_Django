@@ -8,10 +8,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Quick-start development settings - unsuitable for production
 SECRET_KEY = 'django-insecure-7xtf^8mx%38rgf_xv&*+oqfk1zf746akl@+*vli@w2w_my49az'
 DEBUG = False
 
@@ -20,7 +18,6 @@ ALLOWED_HOSTS = [
     "127.0.0.1",
 ]
 
-# Application definition
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -42,7 +39,6 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-# Static files
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedStaticFilesStorage'
@@ -67,7 +63,6 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'myproject.wsgi.application'
 
-# Database
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
@@ -75,7 +70,6 @@ DATABASES = {
     }
 }
 
-# Password validation
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
     {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
@@ -83,25 +77,20 @@ AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
 
-# Internationalization
 LANGUAGE_CODE = 'en-us'
 TIME_ZONE = 'UTC'
 USE_I18N = True
 USE_TZ = True
 
-# Media files
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
-# Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# Memory management settings
-DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10MB
-FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10MB
+DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024 
+FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  
 DATA_UPLOAD_MAX_NUMBER_FIELDS = 1000
 
-# Cache configuration for memory efficiency
 CACHES = {
     'default': {
         'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
@@ -111,10 +100,10 @@ CACHES = {
     }
 }
 
-# Session configuration to reduce memory usage
 SESSION_ENGINE = "django.contrib.sessions.backends.cache"
 SESSION_CACHE_ALIAS = "default"
 
+<<<<<<< HEAD
 # Database connection optimization
 # DATABASES['default']['OPTIONS'] = {
 #     'connect_timeout': 10,
@@ -122,8 +111,12 @@ SESSION_CACHE_ALIAS = "default"
 
 # Google Gemini AI Configuration
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', 'AIzaSyDlnXog3XxbSIBuiR5BjBOoGN-eBPjJ14w')
+=======
+DATABASES['default']['OPTIONS'] = {
+    'connect_timeout': 10,
+}
+>>>>>>> 9431af28950be30b1cb8b44dae8930cf01ea2814
 
-# Render deployment configuration
 if 'RENDER' in os.environ:
     ALLOWED_HOSTS = [
         'whatsapp-text-chat-analysis-system.onrender.com',
