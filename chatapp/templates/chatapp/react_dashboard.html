@@ -4446,12 +4446,23 @@
           
           let content = '';
           if (data.weekly_summaries && data.weekly_summaries.length > 0) {
-            content = data.weekly_summaries.map(week => {
+            // Sort weeks by date to ensure proper chronological order
+            const sortedWeeks = [...data.weekly_summaries].sort((a, b) => {
+              const dateA = new Date(a.week_start);
+              const dateB = new Date(b.week_start);
+              return dateA - dateB;
+            });
+            
+            content = sortedWeeks.map((week, index) => {
               console.log('Week data:', week);
               
               // Format the summary content with proper structure
               let formattedSummary = week.summary || 'No summary content available';
               
+              // Handle quota exceeded messages
+              if (formattedSummary.includes('Summary temporarily unavailable due to technical issues')) {
+                formattedSummary = `<div class="alert alert-warning"><i class="fas fa-exclamation-triangle"></i> ${formattedSummary}</div>`;
+              } 
               // Handle structured format with sections
               if (formattedSummary.includes('**ACTIVITY OVERVIEW**') || formattedSummary.includes('**MAIN DISCUSSION TOPICS**')) {
                 // Format structured sections
@@ -4477,7 +4488,7 @@
               return `
                 <div class="weekly-summary-item">
                   <div class="weekly-summary-header">
-                    ${week.date_range} (${week.message_count} messages, ${week.participant_count} participants)
+                    Week ${index + 1}: ${week.date_range} (${week.message_count} messages, ${week.participant_count} participants)
                   </div>
                   <div class="weekly-summary-content">${formattedSummary}</div>
                 </div>
@@ -6919,4 +6930,4 @@
     })();
   </script>
 </body>
-</html>    
+</html>

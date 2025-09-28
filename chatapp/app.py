@@ -33,10 +33,14 @@ genai.configure(api_key=os.getenv("GEMINI_API_KEY") or settings.GEMINI_API_KEY)
 
 # Initialize the model with fallback
 try:
-    model = genai.GenerativeModel('gemini-1.5-pro')
+    model = genai.GenerativeModel('gemini-2.0-flash')
 except Exception as e:
-    logger.warning(f"Could not initialize gemini-1.5-pro, falling back to gemini-1.5-pro: {e}")
-    model = genai.GenerativeModel('gemini-1.5-pro')
+    logger.warning(f"Could not initialize gemini-2.0-flash, falling back to gemini-1.5-pro: {e}")
+    try:
+        model = genai.GenerativeModel('gemini-1.5-pro')
+    except Exception as e2:
+        logger.warning(f"Could not initialize gemini-1.5-pro, falling back to gemini-pro-latest: {e2}")
+        model = genai.GenerativeModel('gemini-pro-latest')
 
 def generate_with_gemini(prompt):
     """Generate content using Google Gemini AI SDK"""
@@ -205,7 +209,7 @@ def summarize(request):
         return JsonResponse({"summary_type": "user_messages_for_user", "user": user, "user_messages": user_messages})
     
     elif summary_type == 'weekly_summary':
-        weekly_summaries = generate_weekly_summary(filtered_messages)
+        weekly_summaries = generate_weekly_summary(filtered_messages, start_date_str, end_date_str)
         return JsonResponse({"summary_type": "weekly_summary", "weekly_summaries": weekly_summaries})
     
     else:

@@ -25,6 +25,7 @@ urlpatterns = [
     path('activity_analysis/', views.activity_analysis, name='activity_analysis'),
     path('export_data/', views.export_data, name='export_data'),
     path('debug_groups/', views.debug_groups, name='debug_groups'),
+    path('health/', views.health_check, name='health_check'),
     
     
 ]

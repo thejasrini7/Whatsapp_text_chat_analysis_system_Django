@@ -4319,8 +4319,12 @@
               // Format the summary content with proper structure
               let formattedSummary = week.summary || 'No summary content available';
               
-              // Handle structured format with sections
-              if (formattedSummary.includes('**ACTIVITY OVERVIEW**') || formattedSummary.includes('**MAIN DISCUSSION TOPICS**')) {
+              // Check if this is a quota exceeded message and display it properly
+              if (formattedSummary.includes('Summary temporarily unavailable due to technical issues')) {
+                formattedSummary = `<div class="alert alert-warning"><i class="fas fa-exclamation-triangle"></i> ${formattedSummary}</div>`;
+              } 
+              // Handle structured format with sections (fallback summaries and normal AI summaries)
+              else if (formattedSummary.includes('**ACTIVITY OVERVIEW**') || formattedSummary.includes('**MAIN DISCUSSION TOPICS**')) {
                 // Format structured sections
                 formattedSummary = formattedSummary
                   .replace(/\*\*([^*]+)\*\*:/g, '<h4 style="color: var(--primary); margin: 1rem 0 0.5rem 0; font-weight: 600;">$1</h4>')

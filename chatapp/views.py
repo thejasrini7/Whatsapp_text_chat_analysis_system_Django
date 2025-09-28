@@ -641,7 +641,7 @@ def summarize(request):
         return JsonResponse({"summary_type": "user_messages_for_user", "user": user, "user_messages": user_messages})
     
     elif summary_type == 'weekly_summary':
-        weekly_summaries = generate_weekly_summary(filtered_messages)
+        weekly_summaries = generate_weekly_summary(filtered_messages, start_date_str, end_date_str)
         return JsonResponse({"summary_type": "weekly_summary", "weekly_summaries": weekly_summaries})
     
     elif summary_type == 'brief':
@@ -1596,3 +1596,12 @@ def debug_groups(request):
         import traceback
         traceback.print_exc()
         return JsonResponse({"error": f"Internal server error: {str(e)}"}, status=500)
+
+
+def health_check(request):
+    """Health check endpoint for Render deployment"""
+    return JsonResponse({
+        'status': 'healthy',
+        'timestamp': datetime.now().isoformat(),
+        'service': 'whatsapp-analytics'
+    })

@@ -16,10 +16,14 @@ genai.configure(api_key=os.getenv("GEMINI_API_KEY") or settings.GEMINI_API_KEY)
 
 # Initialize the model with fallback
 try:
-    model = genai.GenerativeModel('gemini-1.5-pro')
+    model = genai.GenerativeModel('gemini-2.0-flash')
 except Exception as e:
-    logger.warning(f"Could not initialize gemini-1.5-pro, falling back to gemini-1.5-pro: {e}")
-    model = genai.GenerativeModel('gemini-1.5-pro')
+    logger.warning(f"Could not initialize gemini-2.0-flash, falling back to gemini-flash-latest: {e}")
+    try:
+        model = genai.GenerativeModel('gemini-flash-latest')
+    except Exception as e2:
+        logger.warning(f"Could not initialize gemini-flash-latest, falling back to gemini-pro-latest: {e2}")
+        model = genai.GenerativeModel('gemini-pro-latest')
 
 def generate_fallback_summary(messages):
     """Generate structured summary with actual message content when AI is unavailable"""
@@ -256,6 +260,10 @@ def format_message_content(message):
     if not message:
         return message
     
+    # Remove escape characters
+    message = message.replace('\\n', '\n').replace('\\t', ' ').replace(r'\[', '[').replace(r'\]', ']')
+    message = re.sub(r'\\(.)', r'\1', message)  # Remove backslashes before special characters
+    
     # If message contains structured content, format it with bullet points
     if any(indicator in message for indicator in ['*', '**', '१)', '२)', 'विषय', 'दिनांक']):
         # Split by common delimiters and create bullet points
@@ -335,6 +343,9 @@ def clean_summary_text(summary):
                 # Skip system message references
                 if any(term in line.lower() for term in ['media omitted', 'security code', 'tap to learn']):
                     continue
+                # Remove escape characters and clean formatting
+                line = line.replace('\\n', '\n').replace('\\t', ' ').replace(r'\[', '[').replace(r'\]', ']')
+                line = re.sub(r'\\(.)', r'\1', line)  # Remove backslashes before special characters
                 cleaned_lines.append(line)
         return '\n'.join(cleaned_lines)
     
@@ -350,6 +361,10 @@ def clean_summary_text(summary):
         # Skip lines that mention system messages
         if any(term in line.lower() for term in ['media omitted', 'security code', 'tap to learn', 'changed security', 'message deleted']):
             continue
+        
+        # Remove escape characters and clean formatting
+        line = line.replace('\\n', '\n').replace('\\t', ' ').replace(r'\[', '[').replace(r'\]', ']')
+        line = re.sub(r'\\(.)', r'\1', line)  # Remove backslashes before special characters
         
         # Process bullet points
         if line.startswith(('•', '-', '*')) or (len(line) >= 2 and line[0].isdigit() and line[1] == '.'):
@@ -376,30 +391,27 @@ def clean_summary_text(summary):
     
     return '\n'.join(cleaned_lines)
 
-def generate_weekly_summary(messages):
+def generate_weekly_summary(messages, start_date_str=None, end_date_str=None):
     """Generate comprehensive weekly summaries with detailed discussion points for filtered date range"""
     if not messages:
         return []
     
-    # Get actual date range from filtered messages
-    message_dates = []
-    for msg in messages:
-        dt = parse_timestamp(msg['timestamp'])
-        if dt:
-            message_dates.append(dt)
+    # Parse start and end dates if provided
+    start_date = None
+    end_date = None
+    if start_date_str:
+        start_date = datetime.strptime(start_date_str, '%Y-%m-%d')
+    if end_date_str:
+        end_date = datetime.strptime(end_date_str, '%Y-%m-%d')
+        end_date = end_date.replace(hour=23, minute=59, second=59)
     
-    if not message_dates:
-        return []
-    
-    # Find the actual start and end dates from messages
-    start_msg_date = min(message_dates)
-    end_msg_date = max(message_dates)
-    
+    # Group messages by week (messages are already filtered by views.py)
     weeks = {}
     for msg in messages:
         dt = parse_timestamp(msg['timestamp'])
         if not dt:
             continue
+            
         monday = dt - timedelta(days=dt.weekday())
         week_key = monday.strftime('%Y-%m-%d')
         if week_key not in weeks:
@@ -408,9 +420,20 @@ def generate_weekly_summary(messages):
     
     weekly_summaries = []
 
+    # Process all weeks that have messages within the filtered date range
     for week_key, week_messages in sorted(weeks.items()):
-        # Only process weeks that have messages (already filtered by date)
+        # Only process weeks that have messages
         if not week_messages:
+            continue
+            
+        # Check if this week falls within the specified date range
+        week_start = datetime.strptime(week_key, '%Y-%m-%d')
+        week_end = week_start + timedelta(days=6)
+        
+        # Skip weeks that are outside the specified date range
+        if start_date and week_end < start_date:
+            continue
+        if end_date and week_start > end_date:
             continue
             
         # Basic statistics for this week
@@ -431,11 +454,6 @@ def generate_weekly_summary(messages):
         week_text = "\n".join([f"{msg['sender']}: {msg['message']}" for msg in week_messages])
 
         try:
-            # Debug: Print the actual messages to see what we're working with
-            print(f"DEBUG: Processing {total_messages} messages for week {week_key}")
-            for i, msg in enumerate(week_messages[:3]):  # Print first 3 messages
-                print(f"DEBUG Message {i+1}: {msg['sender']}: {msg['message'][:50]}...")
-            
             # Enhanced prompt to extract EXACT conversation content and quotes
             exact_content_prompt = f"""Analyze this week's WhatsApp conversation and create a detailed summary showing EXACTLY what was discussed with actual quotes and specific content.
 
@@ -473,7 +491,6 @@ Week's conversation content:
 {week_text}"""
             
             response = generate_with_gemini(exact_content_prompt)
-            print(f"DEBUG: API Response type: {type(response)}, Content preview: {str(response)[:100]}...")
             
             # Check if API quota exceeded or error occurred
             if response == "QUOTA_EXCEEDED":
@@ -486,7 +503,12 @@ Week's conversation content:
                 summary = clean_summary_text(summary)
 
         except Exception as e:
-            summary = f"Error generating summary: {str(e)}"
+            # Even if there's an error, we should still include this week in the results
+            # Use fallback summary
+            try:
+                summary = generate_fallback_summary(week_messages)
+            except Exception as fallback_error:
+                summary = f"Error generating summary: {str(e)}. Fallback error: {str(fallback_error)}"
         
         monday = datetime.strptime(week_key, '%Y-%m-%d')
         sunday = monday + timedelta(days=6)

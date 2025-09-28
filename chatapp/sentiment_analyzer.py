@@ -1,5 +1,4 @@
 import google.generativeai as genai
-import google.generativeai as genai
 from django.conf import settings
 import json
 import re
@@ -18,13 +17,13 @@ genai.configure(api_key=settings.GEMINI_API_KEY)
 
 # Initialize the model with correct name
 try:
-    model = genai.GenerativeModel('gemini-1.5-pro')
-    print("✅ Successfully initialized gemini-1.5-pro model")
+    model = genai.GenerativeModel('gemini-2.0-flash')
+    print("✅ Successfully initialized gemini-2.0-flash model")
 except Exception as e:
-    logger.error(f"❌ Could not initialize gemini-1.5-pro: {e}")
+    logger.error(f"❌ Could not initialize gemini-2.0-flash: {e}")
     try:
-        model = genai.GenerativeModel('gemini-pro')
-        print("✅ Fallback: Successfully initialized gemini-pro model")
+        model = genai.GenerativeModel('gemini-flash-latest')
+        print("✅ Fallback: Successfully initialized gemini-flash-latest model")
     except Exception as e2:
         logger.error(f"❌ Could not initialize any Gemini model: {e2}")
         model = None
