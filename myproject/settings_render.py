@@ -7,18 +7,30 @@ from pathlib import Path
 import os
 from dotenv import load_dotenv
 
+# Load local .env if present
 load_dotenv()
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-7xtf^8mx%38rgf_xv&*+oqfk1zf746akl@+*vli@w2w_my49az')
+# ---------- Sensitive / env-driven settings ----------
+# Secret key: use env var in production. Falls back to old key for local dev only.
+SECRET_KEY = os.environ.get(
+    "SECRET_KEY",
+    "django-insecure-7xtf^8mx%38rgf_xv&*+oqfk1zf746akl@+*vli@w2w_my49az"
+)
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.environ.get('DEBUG', 'False').lower() == 'true'
+# DEBUG: default to False in production; set to 'True' for local/dev by env var.
+DEBUG = os.environ.get("DEBUG", "False") == "True"
 
-ALLOWED_HOSTS = ["*"]  # Allow all hosts for Render deployment
+# ALLOWED_HOSTS: read from env (comma separated). Defaults include local + your Render domain.
+_default_hosts = "127.0.0.1,localhost,whatsapp-text-chat-analysis-system-4q8m.onrender.com,.onrender.com"
+ALLOWED_HOSTS = [h.strip() for h in os.environ.get("ALLOWED_HOSTS", _default_hosts).split(",") if h.strip()]
+
+# CSRF trusted origins (Django needs full scheme)
+_default_csrf = "https://whatsapp-text-chat-analysis-system-4q8m.onrender.com"
+CSRF_TRUSTED_ORIGINS = [u.strip() for u in os.environ.get("CSRF_TRUSTED_ORIGINS", _default_csrf).split(",") if u.strip()]
+# ----------------------------------------------------
 
 INSTALLED_APPS = [
     'django.contrib.admin',
