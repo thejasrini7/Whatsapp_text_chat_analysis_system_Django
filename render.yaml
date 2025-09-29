@@ -1,0 +1,27 @@
+services:
+- type: web
+  name: whatsapp-analytics
+  env: python
+  plan: free
+  region: oregon
+  buildCommand: "pip install -r requirements.txt && python whatsapp_django/manage.py collectstatic --noinput && python whatsapp_django/manage.py migrate"
+  startCommand: "gunicorn web:app --bind 0.0.0.0:8000 --workers 2 --timeout 120"
+  envVars:
+  - key: PYTHON_VERSION
+    value: 3.11.0
+  - key: DJANGO_SETTINGS_MODULE
+    value: myproject.settings_render
+  - key: SECRET_KEY
+    sync: false
+  - key: GEMINI_API_KEY
+    sync: false
+  - key: DEBUG
+    value: False
+  - key: PORT
+    value: 8000
+  - key: RENDER
+    value: "true"
+  - key: ALLOWED_HOSTS
+    value: "127.0.0.1,localhost,whatsapp-text-chat-analysis-system-4q8m.onrender.com,.onrender.com"
+  - key: CSRF_TRUSTED_ORIGINS
+    value: "https://whatsapp-text-chat-analysis-system-4q8m.onrender.com"
